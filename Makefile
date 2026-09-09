@@ -21,10 +21,7 @@ install-python:
 install: build install-python
 
 clean:
-	rm -f $(BINARY_NAME)
-	rm -f $(BINARY_NAME).exe
-	rm -f spectre-installer.exe
-	rm -f $(COVER_PROFILE)
+	rm -rf $(BINARY_NAME) $(BINARY_NAME).exe bin dist spectre-installer.exe $(COVER_PROFILE) coverage coverage.xml .coverage .pytest_cache evidence_storage startup_perf.json *.db*
 
 run: build
 	./$(BINARY_NAME)

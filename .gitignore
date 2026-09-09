@@ -41,16 +41,19 @@ conductor/setup_state.json
 # Runtime Data & Logs
 logs/
 evidence_storage/
-spectre.db
-spectre.db-shm
-spectre.db-wal
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
 *.log
 
 # Build Artifacts
 
+bin/
 dist/
 
 spectre
+startup_perf.json
 
 *.env
 
