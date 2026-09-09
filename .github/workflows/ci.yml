@@ -125,6 +125,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect-changes
     if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.python == 'true'
+    env:
+      PYTHONPATH: ${{ github.workspace }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -151,7 +153,9 @@ jobs:
         run: flake8 analyzer/ --max-line-length 100 --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Run Pytest
-        run: pytest analyzer/ --cov=analyzer --cov-report=xml
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m pytest analyzer/ --cov=analyzer --cov-report=xml
 
       - name: Upload Python coverage to Codecov
         uses: codecov/codecov-action@v4
