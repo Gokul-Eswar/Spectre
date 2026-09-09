@@ -28,6 +28,9 @@ go.work
 __pycache__/
 *.pyc
 analyzer/__pycache__/
+*.egg-info/
+.coverage
+.coverage.*
 
 # Agent & Temporary
 .gemini/
