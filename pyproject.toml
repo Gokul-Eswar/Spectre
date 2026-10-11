@@ -7,6 +7,13 @@ name = "spectre-analyzer"
 version = "0.1.0"
 description = "SPECTRE Python Analyzer"
 requires-python = ">=3.10"
-
-[tool.setuptools.package-dir]
-analyzer = "."
+dependencies = [
+    "pydantic",
+    "rich",
+    "pyvis",
+    "networkx",
+    "requests",
+    "jinja2",
+    "chromadb",
+    "sentence-transformers",
+]

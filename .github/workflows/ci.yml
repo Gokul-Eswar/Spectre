@@ -64,7 +64,11 @@ jobs:
           cache: true
 
       - name: Verify dependencies
-        run: go mod download
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+          go mod download
+          go mod verify
 
       - name: Setup Chrome for screenshot tests
         id: setup-chrome
@@ -80,9 +84,11 @@ jobs:
           fi
           echo "CHROME_BIN=$CHROME_PATH" >> "$GITHUB_ENV"
           echo "Resolved Chrome binary: $CHROME_PATH"
-          if [ -n "$CHROME_PATH" ]; then
-            "$CHROME_PATH" --version
+          if [ -z "$CHROME_PATH" ] || [ ! -x "$CHROME_PATH" ]; then
+            echo "No executable Chrome binary was found." >&2
+            exit 1
           fi
+          "$CHROME_PATH" --version
 
       - name: Vet
         run: go vet ./...
@@ -144,7 +150,9 @@ jobs:
           pip install -r analyzer/requirements.txt pytest-cov black flake8
 
       - name: Install analyzer package in editable mode
-        run: pip install -e analyzer/
+        run: |
+          pip install -e .
+          python -c "import analyzer; print(f'Analyzer module loaded from {analyzer.__file__}')"
 
       - name: Format Python code with Black
         run: black analyzer/
