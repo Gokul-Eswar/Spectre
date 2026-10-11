@@ -25,10 +25,15 @@ go.work
 
 # Python
 .venv/
+venv/
+env/
+ENV/
 __pycache__/
 *.pyc
-analyzer/__pycache__/
 *.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 .coverage.*
 
@@ -50,6 +55,7 @@ evidence_storage/
 # Build Artifacts
 
 bin/
+build/
 dist/
 
 spectre
