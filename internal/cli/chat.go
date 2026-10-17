@@ -139,7 +139,7 @@ func printHelpGuide() {
 	fmt.Printf("  %-15s %s\n", boldStyle.Render("Case"), "The logical container for an investigation. All target data, evidence, and entity")
 	fmt.Printf("                  %s\n", "relations are saved under a unique Case ID.")
 	fmt.Printf("  %-15s %s\n", boldStyle.Render("Collect"), "Runs passive or active modules (Geo, Whois, DNS, Ports, GitHub, etc.) to gather data.")
-	fmt.Printf("  %-15s %s\n", boldStyle.Render("Analyze"), "Uses local LLMs (Ollama Llama3/Mistral) to extract findings, risk rankings, and connections.")
+	fmt.Printf("  %-15s %s\n", boldStyle.Render("Analyze"), "Uses configured LLMs (local or cloud) to extract findings, risk rankings, and connections.")
 	fmt.Printf("  %-15s %s\n", boldStyle.Render("Visualize"), "Launches a local web server displaying D3.js interactive entity relation graphs.")
 	fmt.Printf("  %-15s %s\n", boldStyle.Render("Report"), "Generates structured Markdown summaries or executive-ready branded PDF reports.")
 

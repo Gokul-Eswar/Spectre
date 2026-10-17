@@ -7,6 +7,7 @@ import (
 	"github.com/Gokul-Eswar/Spectre/internal/core"
 	"github.com/Gokul-Eswar/Spectre/internal/storage"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var modelName string
@@ -33,6 +34,12 @@ var analyzeCmd = &cobra.Command{
 
 		if err := storage.InitDB(); err != nil {
 			return err
+		}
+
+		if !cmd.Flags().Changed("model") {
+			if cfgModel := viper.GetString("llm.model"); cfgModel != "" {
+				modelName = cfgModel
+			}
 		}
 
 		fmt.Printf("Analyzing case %s with model %s (via Python)...\n", caseID, modelName)

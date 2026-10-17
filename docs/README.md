@@ -37,7 +37,7 @@ Want to add your own tools or integrate SPECTRE with other systems?
 For experienced users and enterprise deployments:
 
 - **[Deployment Guide](DEPLOYMENT.md)** ← Running SPECTRE on servers, multi-user setups, and headless systems.
-- **[LLM Integration](llm.md)** ← Setting up local AI (Ollama) for analysis.
+- **[LLM Integration](llm.md)** ← Setting up local or cloud AI models for analysis.
 - **[Performance Tuning](performance.md)** ← Making SPECTRE faster and more efficient.
 
 ---

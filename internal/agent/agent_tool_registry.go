@@ -12,6 +12,7 @@ import (
 	"github.com/Gokul-Eswar/Spectre/internal/collector"
 	"github.com/Gokul-Eswar/Spectre/internal/core"
 	"github.com/Gokul-Eswar/Spectre/internal/storage"
+	"github.com/spf13/viper"
 )
 
 // Tool defines a capability/capability model that the conversational LLM agent can invoke.
@@ -285,15 +286,23 @@ var Registry = map[string]Tool{
 				return "", fmt.Errorf("failed to read image file: %w", err)
 			}
 
-			// Encode the image bytes to base64. The Python Ollama endpoint expects a base64 envelope.
+			// Encode the image bytes to base64. The Python analyzer endpoint expects a base64 envelope.
 			base64Str := base64.StdEncoding.EncodeToString(imgData)
+
+			cfg := analyzer.GetLLMConfig()
+			model := viper.GetString("llm.model")
+			if model == "" {
+				model = analyzer.GetDefaultModelForProvider(cfg.Provider)
+			}
 
 			// Prepare request payload for python task "vision".
 			req := analyzer.Request{
-				Task:    "vision",
-				CaseID:  caseID,
-				Data:    prompt,
-				Context: base64Str,
+				Task:      "vision",
+				CaseID:    caseID,
+				Data:      prompt,
+				Context:   base64Str,
+				Model:     model,
+				LLMConfig: cfg,
 			}
 
 			// Invoke the python task runner.
@@ -330,10 +339,18 @@ var Registry = map[string]Tool{
 		Execute: func(caseID string, args map[string]interface{}) (string, error) {
 			target, _ := args["target"].(string)
 
+			cfg := analyzer.GetLLMConfig()
+			model := viper.GetString("llm.model")
+			if model == "" {
+				model = analyzer.GetDefaultModelForProvider(cfg.Provider)
+			}
+
 			req := analyzer.Request{
-				Task:   "generate_dorks",
-				CaseID: caseID,
-				Data:   target,
+				Task:      "generate_dorks",
+				CaseID:    caseID,
+				Data:      target,
+				Model:     model,
+				LLMConfig: cfg,
 			}
 
 			output, err := analyzer.GlobalTaskRunner.Run(req)

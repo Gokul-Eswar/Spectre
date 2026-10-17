@@ -14,8 +14,8 @@ Before starting, make sure you have these installed:
 | **Python** | 3.10+ | `python --version` |
 | **Git** | 2.x+ | `git --version` |
 
-**Optional (for AI features):**
-- **Ollama** — Download from [ollama.ai](https://ollama.ai). Run `ollama pull llama3` after installing.
+- **Local LLM:** Ollama ([ollama.ai](https://ollama.ai)) or LM Studio ([lmstudio.ai](https://lmstudio.ai)) for private offline AI.
+- **Cloud LLM:** API key for OpenAI, Anthropic Claude, Google Gemini, Groq, or OpenRouter.
 
 ---
 

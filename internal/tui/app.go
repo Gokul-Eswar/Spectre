@@ -8,9 +8,11 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/Gokul-Eswar/Spectre/internal/analysis"
+	"github.com/Gokul-Eswar/Spectre/internal/analyzer"
 	"github.com/Gokul-Eswar/Spectre/internal/config"
 	"github.com/Gokul-Eswar/Spectre/internal/core"
 	"github.com/Gokul-Eswar/Spectre/internal/report"
@@ -41,6 +43,24 @@ const (
 	AnalysisError
 )
 
+const (
+	SettingLLMProvider = iota
+	SettingLLMModel
+	SettingLLMEndpoint
+	SettingLLMKey
+	SettingLLMTimeout
+	SettingLLMTest
+	SettingGhostMode
+	SettingCollectorDNS
+	SettingCollectorWhois
+	SettingCollectorGitHub
+	SettingCollectorGeo
+	SettingCollectorPorts
+	SettingCollectorSocial
+	SettingCollectorScreenshot
+	TotalSettingsCount
+)
+
 type model struct {
 	state          sessionState
 	cursor         int
@@ -48,12 +68,21 @@ type model struct {
 	width          int
 	height         int
 	selectedCaseID string
-	modelName      string // For status bar
+	modelName      string // For status bar and prompt routing
 	focusNav       bool   // Focus state: true=Sidebar, false=MainContent
 	navCursor      int    // Cursor for sidebar selection
 
-	// Settings State
-	settingsCursor int
+	// LLM Configuration & Settings State
+	settingsCursor   int
+	llmProvider      string
+	llmEndpoint      string
+	llmApiKey        string
+	llmTimeout       int
+	testStatus       string
+	testRunning      bool
+	isEditingSetting bool
+	editSettingIndex int
+	settingInput     textinput.Model
 
 	availableModels []string
 
@@ -79,22 +108,35 @@ func InitialModel() model {
 	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 	l.Title = "CASES"
 
-	defaultModel := viper.GetString("llm.model")
-	if defaultModel == "" {
-		defaultModel = "llama3"
+	cfg := analyzer.GetLLMConfig()
+	activeModel := viper.GetString("llm.model")
+	if activeModel == "" {
+		activeModel = analyzer.GetDefaultModelForProvider(cfg.Provider)
 	}
 
+	ti := textinput.New()
+	ti.CharLimit = 256
+	ti.Width = 60
+
+	_, _, presets := analysis.GetPresetsForProvider(cfg.Provider)
+
 	return model{
-		state:           ViewCases,
-		navCursor:       0,
-		settingsCursor:  0,
-		caseList:        l,
-		entityTable:     NewEntityTable(),
-		relTable:        NewRelationshipTable(),
-		runner:          NewRunnerModel(),
-		chat:            newChatModel(),
-		modelName:       defaultModel,
-		availableModels: []string{defaultModel},
+		state:            ViewCases,
+		navCursor:        0,
+		settingsCursor:   0,
+		caseList:         l,
+		entityTable:      NewEntityTable(),
+		relTable:         NewRelationshipTable(),
+		runner:           NewRunnerModel(),
+		chat:             newChatModel(),
+		modelName:        activeModel,
+		llmProvider:      cfg.Provider,
+		llmEndpoint:      cfg.URL,
+		llmApiKey:        cfg.APIKey,
+		llmTimeout:       cfg.Timeout,
+		settingInput:     ti,
+		availableModels:  presets,
+		isEditingSetting: false,
 	}
 }
 
@@ -139,8 +181,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.analysisStep++
 				return m, tickCmd()
 			}
-			// If steps are done but analysis isn't, keep spinning on the last step?
-			// Or just stop ticking and wait for the result.
 			return m, nil
 		}
 
@@ -160,7 +200,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.availableModels) > 0 {
 			found := false
 			for _, mod := range m.availableModels {
-				if mod == m.modelName {
+				if strings.EqualFold(mod, m.modelName) {
 					found = true
 					break
 				}
@@ -168,8 +208,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !found {
 				m.modelName = m.availableModels[0]
 				viper.Set("llm.model", m.modelName)
+				_ = config.SaveConfig()
 			}
 		}
+
+	case TestConnectionMsg:
+		m.testRunning = false
+		if msg.Success {
+			m.testStatus = lipgloss.NewStyle().Foreground(ColorSuccess).Render("✓ " + msg.Message)
+		} else {
+			m.testStatus = lipgloss.NewStyle().Foreground(ColorError).Render("✗ " + msg.Message)
+		}
+		return m, nil
 
 	case AnalysisErrorMsg:
 		m.analysisStatus = AnalysisError
@@ -186,6 +236,51 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tea.KeyMsg:
+		// When actively editing an LLM setting text field, route keystrokes to textinput
+		if m.state == ViewSettings && m.isEditingSetting {
+			switch msg.String() {
+			case "ctrl+c":
+				m.quitting = true
+				return m, tea.Quit
+			case "esc":
+				m.isEditingSetting = false
+				return m, nil
+			case "enter":
+				val := strings.TrimSpace(m.settingInput.Value())
+				switch m.editSettingIndex {
+				case SettingLLMModel:
+					if val != "" {
+						m.modelName = val
+						viper.Set("llm.model", m.modelName)
+						found := false
+						for _, mod := range m.availableModels {
+							if strings.EqualFold(mod, val) {
+								found = true
+								break
+							}
+						}
+						if !found {
+							m.availableModels = append([]string{val}, m.availableModels...)
+						}
+					}
+				case SettingLLMEndpoint:
+					if val != "" {
+						m.llmEndpoint = val
+						viper.Set("llm.url", m.llmEndpoint)
+					}
+				case SettingLLMKey:
+					m.llmApiKey = val
+					viper.Set("llm.api_key", m.llmApiKey)
+				}
+				_ = config.SaveConfig()
+				m.isEditingSetting = false
+				return m, nil
+			default:
+				m.settingInput, cmd = m.settingInput.Update(msg)
+				return m, cmd
+			}
+		}
+
 		switch msg.String() {
 		case "ctrl+c", "q":
 			m.quitting = true
@@ -194,19 +289,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focusNav = !m.focusNav
 			return m, nil
 		case "right":
-			m.focusNav = false
-			return m, nil
+			if !m.focusNav && m.state != ViewSettings {
+				m.focusNav = false
+				return m, nil
+			}
+			if m.focusNav {
+				m.focusNav = false
+				return m, nil
+			}
 		case "left":
-			m.focusNav = true
-			return m, nil
-		case "?":
-			// Show help overlay?
+			if !m.focusNav && m.state != ViewSettings {
+				m.focusNav = true
+				return m, nil
+			}
 		}
 
 		if m.focusNav {
 			switch msg.String() {
 			case "j", "down":
-				if m.navCursor < int(ViewDashboard) {
+				if m.navCursor < int(ViewCollection) {
 					m.navCursor++
 				}
 			case "k", "up":
@@ -237,7 +338,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Navigation logic (j/k or arrows)
 		if m.state == ViewCases {
-			// In Cases view, we might want to navigate the list
 			var cmd2 tea.Cmd
 			m.caseList, cmd2 = m.caseList.Update(msg)
 
@@ -245,7 +345,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if selected, ok := m.caseList.SelectedItem().(item); ok {
 					m.selectedCaseID = selected.id
 					m.chat.setCase(selected.id)
-					// Transition to Analysis or Evidence?
 					m.state = ViewEvidence
 					return m, func() tea.Msg {
 						rows, err := FetchEntities(selected.id)
@@ -317,6 +416,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "8":
 			m.state = ViewChat
 		case "9":
+			m.state = ViewDashboard
+		case "0":
 			m.state = ViewCollection
 		}
 
@@ -326,58 +427,214 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd2
 		}
 
-		// Specific View Keybindings
+		// Specific View Keybindings for Settings
 		if m.state == ViewSettings {
-			if msg.String() == "r" && m.settingsCursor == 1 {
-				return m, fetchModelsCmd
-			}
-
 			switch msg.String() {
 			case "j", "down":
-				if m.settingsCursor < 8 {
+				if m.settingsCursor < TotalSettingsCount-1 {
 					m.settingsCursor++
 				}
+				return m, nil
 			case "k", "up":
 				if m.settingsCursor > 0 {
 					m.settingsCursor--
 				}
-			case "enter", " ":
+				return m, nil
+			case "r":
+				if m.settingsCursor == SettingLLMModel || m.settingsCursor == SettingLLMTest {
+					return m, fetchModelsCmd
+				}
+			case "e":
 				switch m.settingsCursor {
-				case 0: // Ghost Mode
-					viper.Set("ghost_mode", !viper.GetBool("ghost_mode"))
-				case 1: // Model
-					idx := 0
-					for i, mod := range m.availableModels {
-						if mod == m.modelName {
-							idx = i
+				case SettingLLMModel:
+					m.isEditingSetting = true
+					m.editSettingIndex = SettingLLMModel
+					m.settingInput.SetValue(m.modelName)
+					m.settingInput.Placeholder = "Enter model name (e.g. gpt-4o, llama3)"
+					m.settingInput.Focus()
+					return m, textinput.Blink
+				case SettingLLMEndpoint:
+					m.isEditingSetting = true
+					m.editSettingIndex = SettingLLMEndpoint
+					m.settingInput.SetValue(m.llmEndpoint)
+					m.settingInput.Placeholder = "http://localhost:11434 or https://api.openai.com/v1"
+					m.settingInput.Focus()
+					return m, textinput.Blink
+				case SettingLLMKey:
+					m.isEditingSetting = true
+					m.editSettingIndex = SettingLLMKey
+					m.settingInput.SetValue(m.llmApiKey)
+					m.settingInput.Placeholder = "Enter API Key (leave empty to clear)"
+					m.settingInput.Focus()
+					return m, textinput.Blink
+				}
+			case "left", "h":
+				if m.settingsCursor == SettingLLMProvider {
+					providers := analysis.GetSupportedProviders()
+					currIdx := 0
+					for i, p := range providers {
+						if strings.EqualFold(p, m.llmProvider) {
+							currIdx = i
 							break
 						}
 					}
-					if len(m.availableModels) > 0 {
-						idx = (idx + 1) % len(m.availableModels)
-						m.modelName = m.availableModels[idx]
-					}
+					prevIdx := (currIdx - 1 + len(providers)) % len(providers)
+					m.llmProvider = providers[prevIdx]
+					viper.Set("llm.provider", m.llmProvider)
+
+					defaultURL, defaultModel, presets := analysis.GetPresetsForProvider(m.llmProvider)
+					m.llmEndpoint = defaultURL
+					viper.Set("llm.url", m.llmEndpoint)
+					m.modelName = defaultModel
 					viper.Set("llm.model", m.modelName)
-				case 2: // DNS
-					viper.Set("collectors.dns.enabled", !viper.GetBool("collectors.dns.enabled"))
-				case 3: // Whois
-					viper.Set("collectors.whois.enabled", !viper.GetBool("collectors.whois.enabled"))
-				case 4: // GitHub
-					viper.Set("collectors.github.enabled", !viper.GetBool("collectors.github.enabled"))
-				case 5: // Geo
-					viper.Set("collectors.geo.enabled", !viper.GetBool("collectors.geo.enabled"))
-				case 6: // Ports
-					viper.Set("collectors.ports.enabled", !viper.GetBool("collectors.ports.enabled"))
-				case 7: // Social
-					viper.Set("collectors.social.enabled", !viper.GetBool("collectors.social.enabled"))
-				case 8: // Screenshot
-					viper.Set("collectors.screenshot.enabled", !viper.GetBool("collectors.screenshot.enabled"))
+					m.availableModels = presets
+					m.testStatus = ""
+					_ = config.SaveConfig()
+					return m, nil
 				}
-				// Save config
-				config.ApplyEthicsConfig() // Re-apply ethics if needed
-				viper.WriteConfig()
+			case "right", "l":
+				if m.settingsCursor == SettingLLMProvider {
+					providers := analysis.GetSupportedProviders()
+					currIdx := 0
+					for i, p := range providers {
+						if strings.EqualFold(p, m.llmProvider) {
+							currIdx = i
+							break
+						}
+					}
+					nextIdx := (currIdx + 1) % len(providers)
+					m.llmProvider = providers[nextIdx]
+					viper.Set("llm.provider", m.llmProvider)
+
+					defaultURL, defaultModel, presets := analysis.GetPresetsForProvider(m.llmProvider)
+					m.llmEndpoint = defaultURL
+					viper.Set("llm.url", m.llmEndpoint)
+					m.modelName = defaultModel
+					viper.Set("llm.model", m.modelName)
+					m.availableModels = presets
+					m.testStatus = ""
+					_ = config.SaveConfig()
+					return m, nil
+				}
+			case "enter", " ":
+				switch m.settingsCursor {
+				case SettingLLMProvider:
+					providers := analysis.GetSupportedProviders()
+					currIdx := 0
+					for i, p := range providers {
+						if strings.EqualFold(p, m.llmProvider) {
+							currIdx = i
+							break
+						}
+					}
+					nextIdx := (currIdx + 1) % len(providers)
+					m.llmProvider = providers[nextIdx]
+					viper.Set("llm.provider", m.llmProvider)
+
+					defaultURL, defaultModel, presets := analysis.GetPresetsForProvider(m.llmProvider)
+					m.llmEndpoint = defaultURL
+					viper.Set("llm.url", m.llmEndpoint)
+					m.modelName = defaultModel
+					viper.Set("llm.model", m.modelName)
+					m.availableModels = presets
+					m.testStatus = ""
+					_ = config.SaveConfig()
+
+				case SettingLLMModel:
+					if len(m.availableModels) > 0 {
+						currIdx := 0
+						for i, mod := range m.availableModels {
+							if strings.EqualFold(mod, m.modelName) {
+								currIdx = i
+								break
+							}
+						}
+						nextIdx := (currIdx + 1) % len(m.availableModels)
+						m.modelName = m.availableModels[nextIdx]
+						viper.Set("llm.model", m.modelName)
+						_ = config.SaveConfig()
+					} else {
+						m.isEditingSetting = true
+						m.editSettingIndex = SettingLLMModel
+						m.settingInput.SetValue(m.modelName)
+						m.settingInput.Focus()
+						return m, textinput.Blink
+					}
+
+				case SettingLLMEndpoint:
+					m.isEditingSetting = true
+					m.editSettingIndex = SettingLLMEndpoint
+					m.settingInput.SetValue(m.llmEndpoint)
+					m.settingInput.Focus()
+					return m, textinput.Blink
+
+				case SettingLLMKey:
+					m.isEditingSetting = true
+					m.editSettingIndex = SettingLLMKey
+					m.settingInput.SetValue(m.llmApiKey)
+					m.settingInput.Focus()
+					return m, textinput.Blink
+
+				case SettingLLMTimeout:
+					timeouts := []int{30, 60, 120, 180, 300}
+					currIdx := 2
+					for i, t := range timeouts {
+						if t == m.llmTimeout {
+							currIdx = i
+							break
+						}
+					}
+					nextIdx := (currIdx + 1) % len(timeouts)
+					m.llmTimeout = timeouts[nextIdx]
+					viper.Set("llm.timeout", m.llmTimeout)
+					_ = config.SaveConfig()
+
+				case SettingLLMTest:
+					m.testRunning = true
+					m.testStatus = "Testing connection..."
+					return m, testConnectionCmd
+
+				case SettingGhostMode:
+					viper.Set("ghost_mode", !viper.GetBool("ghost_mode"))
+					_ = config.SaveConfig()
+
+				case SettingCollectorDNS:
+					viper.Set("collectors.dns.enabled", !viper.GetBool("collectors.dns.enabled"))
+					config.ApplyEthicsConfig()
+					_ = config.SaveConfig()
+
+				case SettingCollectorWhois:
+					viper.Set("collectors.whois.enabled", !viper.GetBool("collectors.whois.enabled"))
+					config.ApplyEthicsConfig()
+					_ = config.SaveConfig()
+
+				case SettingCollectorGitHub:
+					viper.Set("collectors.github.enabled", !viper.GetBool("collectors.github.enabled"))
+					config.ApplyEthicsConfig()
+					_ = config.SaveConfig()
+
+				case SettingCollectorGeo:
+					viper.Set("collectors.geo.enabled", !viper.GetBool("collectors.geo.enabled"))
+					config.ApplyEthicsConfig()
+					_ = config.SaveConfig()
+
+				case SettingCollectorPorts:
+					viper.Set("collectors.ports.enabled", !viper.GetBool("collectors.ports.enabled"))
+					config.ApplyEthicsConfig()
+					_ = config.SaveConfig()
+
+				case SettingCollectorSocial:
+					viper.Set("collectors.social.enabled", !viper.GetBool("collectors.social.enabled"))
+					config.ApplyEthicsConfig()
+					_ = config.SaveConfig()
+
+				case SettingCollectorScreenshot:
+					viper.Set("collectors.screenshot.enabled", !viper.GetBool("collectors.screenshot.enabled"))
+					config.ApplyEthicsConfig()
+					_ = config.SaveConfig()
+				}
+				return m, nil
 			}
-			return m, nil
 		}
 
 		if m.state == ViewReports {
@@ -387,16 +644,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if err != nil {
 						return AnalysisErrorMsg(err.Error())
 					}
-					// Save to file
 					filename := fmt.Sprintf("report_%s.md", m.selectedCaseID)
-					os.WriteFile(filename, []byte(content), 0644)
-					return AnalysisFinishedMsg{nil} // Signal success (nil result means just update status)
+					_ = os.WriteFile(filename, []byte(content), 0644)
+					return AnalysisFinishedMsg{nil}
 				}
 			}
 			if msg.String() == "p" && m.selectedCaseID != "" {
 				return m, func() tea.Msg {
 					outputDir := filepath.Join("evidence_storage", m.selectedCaseID)
-					os.MkdirAll(outputDir, 0755)
+					_ = os.MkdirAll(outputDir, 0755)
 					outputPath := filepath.Join(outputDir, "investigation_report.pdf")
 					err := report.GeneratePDFReport(m.selectedCaseID, outputPath)
 					if err != nil {
@@ -423,13 +679,7 @@ func (m model) View() string {
 	content := m.renderContent()
 	footer := m.renderFooter()
 
-	// Layout:
-	// Header
-	// Nav | Content
-	// Footer
-
 	mainArea := lipgloss.JoinHorizontal(lipgloss.Top, nav, content)
-
 	appView := lipgloss.JoinVertical(lipgloss.Left, header, mainArea, footer)
 	return lipgloss.NewStyle().Background(ColorBG).Render(appView)
 }
@@ -441,7 +691,7 @@ func (m model) renderHeader() string {
 	}
 
 	title := StyleTitle.Render("SPECTRE v1.0")
-	info := StyleMuted.Render(fmt.Sprintf("%s  |  Model: %s", caseInfo, m.modelName))
+	info := StyleMuted.Render(fmt.Sprintf("%s  |  LLM: [%s] %s", caseInfo, m.llmProvider, m.modelName))
 
 	gapSize := m.width - lipgloss.Width(title) - lipgloss.Width(info) - 4
 	if gapSize < 0 {
@@ -474,13 +724,11 @@ func (m model) renderNav() string {
 	for i, v := range views {
 		line := v.label
 
-		// Prefix: Active indicator
 		prefix := "  "
 		if m.state == v.state {
 			prefix = "▶ "
 		}
 
-		// Selection style
 		content := line
 		if m.navCursor == i {
 			content = StyleSelectedNav.Render(line)
@@ -569,45 +817,106 @@ func (m model) renderContent() string {
 		}
 
 	case ViewSettings:
-		// Settings Menu
-		modelLabel := m.modelName
-		if m.settingsCursor == 1 {
-			modelLabel += " (Press 'r' to scan)"
+		if m.isEditingSetting {
+			title := "Edit Setting"
+			hint := "Press Enter to save, Esc to cancel"
+			switch m.editSettingIndex {
+			case SettingLLMModel:
+				title = "Enter Model Name"
+				hint = "e.g. gpt-4o, llama3, claude-3-5-sonnet-20241022, mistral"
+			case SettingLLMEndpoint:
+				title = "Enter LLM Endpoint Base URL"
+				hint = "e.g. http://localhost:11434, https://api.openai.com/v1, http://localhost:1234/v1"
+			case SettingLLMKey:
+				title = "Enter API Key"
+				hint = "Paste your secret API key (leave empty to clear)"
+			}
+
+			boxStyle := lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(ColorAccent).
+				Padding(1, 2).
+				Width(65)
+
+			var b strings.Builder
+			b.WriteString(StyleTitle.Render(title) + "\n\n")
+			b.WriteString(m.settingInput.View() + "\n\n")
+			b.WriteString(StyleMuted.Render(hint) + "\n")
+			b.WriteString(StyleMuted.Render("[Enter: Save | Esc: Cancel]"))
+
+			content = "SETTINGS — EDITING\n──────────────────\n\n" + boxStyle.Render(b.String())
+			break
 		}
 
-		opts := []struct {
-			label string
-			val   string
-		}{
-			{"Ghost Mode", formatBool(viper.GetBool("ghost_mode"))},
-			{"Model", modelLabel},
-			{"DNS Collector", formatBool(viper.GetBool("collectors.dns.enabled"))},
-			{"Whois Collector", formatBool(viper.GetBool("collectors.whois.enabled"))},
-			{"GitHub Collector", formatBool(viper.GetBool("collectors.github.enabled"))},
-			{"Geo Collector", formatBool(viper.GetBool("collectors.geo.enabled"))},
-			{"Ports Collector", formatBool(viper.GetBool("collectors.ports.enabled"))},
-			{"Social Collector", formatBool(viper.GetBool("collectors.social.enabled"))},
-			{"Screenshot Collector", formatBool(viper.GetBool("collectors.screenshot.enabled"))},
+		keyLabel := maskAPIKey(m.llmApiKey)
+		testLabel := "[ Test Connection ]"
+		if m.testRunning {
+			testLabel = "[ Testing... ]"
+		} else if m.testStatus != "" {
+			testLabel = fmt.Sprintf("[ Test Connection ] %s", m.testStatus)
+		}
+
+		modelLabel := m.modelName
+		if len(m.availableModels) > 1 {
+			modelLabel += fmt.Sprintf(" (%d preset/detected)", len(m.availableModels))
+		}
+
+		type settingItem struct {
+			section string
+			label   string
+			val     string
+			hint    string
+		}
+
+		items := []settingItem{
+			{section: "LLM CONFIGURATION", label: "Provider", val: m.llmProvider, hint: "Enter/Space: cycle | Left/Right: change"},
+			{section: "", label: "Model", val: modelLabel, hint: "Enter: cycle | e: edit | r: scan"},
+			{section: "", label: "Endpoint URL", val: m.llmEndpoint, hint: "Enter/e: edit"},
+			{section: "", label: "API Key", val: keyLabel, hint: "Enter/e: edit"},
+			{section: "", label: "Timeout", val: fmt.Sprintf("%ds", m.llmTimeout), hint: "Enter: cycle"},
+			{section: "", label: "Test Connection", val: testLabel, hint: "Enter: run connection test"},
+
+			{section: "GENERAL & COLLECTORS", label: "Ghost Mode", val: formatBool(viper.GetBool("ghost_mode")), hint: "Enter: toggle"},
+			{section: "", label: "DNS Collector", val: formatBool(viper.GetBool("collectors.dns.enabled")), hint: "Enter: toggle"},
+			{section: "", label: "Whois Collector", val: formatBool(viper.GetBool("collectors.whois.enabled")), hint: "Enter: toggle"},
+			{section: "", label: "GitHub Collector", val: formatBool(viper.GetBool("collectors.github.enabled")), hint: "Enter: toggle"},
+			{section: "", label: "Geo Collector", val: formatBool(viper.GetBool("collectors.geo.enabled")), hint: "Enter: toggle"},
+			{section: "", label: "Ports Collector", val: formatBool(viper.GetBool("collectors.ports.enabled")), hint: "Enter: toggle"},
+			{section: "", label: "Social Collector", val: formatBool(viper.GetBool("collectors.social.enabled")), hint: "Enter: toggle"},
+			{section: "", label: "Screenshot Collector", val: formatBool(viper.GetBool("collectors.screenshot.enabled")), hint: "Enter: toggle"},
 		}
 
 		var s strings.Builder
-		s.WriteString("SETTINGS\n────────\n\n")
+		s.WriteString("SETTINGS & CONFIGURATION\n")
+		s.WriteString("────────────────────────\n\n")
 
-		for i, opt := range opts {
+		for i, item := range items {
+			if item.section != "" {
+				s.WriteString(lipgloss.NewStyle().Bold(true).Foreground(ColorAccent).Render(fmt.Sprintf("─── %s ───", item.section)) + "\n")
+			}
+
 			cursor := "  "
 			if m.settingsCursor == i {
 				cursor = "> "
 			}
 
-			style := lipgloss.NewStyle()
+			lblStyle := lipgloss.NewStyle()
+			valStyle := lipgloss.NewStyle()
 			if m.settingsCursor == i {
-				style = StyleSelectedNav
+				lblStyle = StyleSelectedNav
+				valStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF"))
 			}
 
-			s.WriteString(fmt.Sprintf("%s%s: %s\n", cursor, style.Render(opt.label), opt.val))
+			line := fmt.Sprintf("%s%-22s : %s", cursor, lblStyle.Render(item.label), valStyle.Render(item.val))
+			s.WriteString(line)
+
+			if m.settingsCursor == i && item.hint != "" {
+				s.WriteString("  " + StyleMuted.Render("("+item.hint+")"))
+			}
+			s.WriteString("\n")
 		}
 
-		s.WriteString("\n(Press 'Enter' or 'Space' to toggle/change)\n")
+		s.WriteString("\n" + StyleMuted.Render("Navigation: 'j'/'k' (Up/Down)  |  'Enter' Select/Cycle  |  'e' Edit Text  |  'r' Scan Models"))
 		content = s.String()
 
 	case ViewDashboard:
@@ -617,7 +926,7 @@ func (m model) renderContent() string {
 		content = m.runner.View()
 
 	default:
-		content = fmt.Sprintf("HIGH-DENSITY INTELLIGENCE SUMMARY\n──────────────────────────────────\nActive Case: %s\nModel Engine: %s\nStatus: Ready", m.selectedCaseID, m.modelName)
+		content = fmt.Sprintf("HIGH-DENSITY INTELLIGENCE SUMMARY\n──────────────────────────────────\nActive Case: %s\nModel Engine: %s (%s)\nStatus: Ready", m.selectedCaseID, m.modelName, m.llmProvider)
 	}
 
 	return StyleMain.Width(m.width - 25).Height(m.height - 4).Render(content)
@@ -629,7 +938,8 @@ func (m model) renderFooter() string {
 		status = "👻 GHOST MODE ACTIVE"
 	}
 
-	info := "ollama:localhost:11434  |  Press ? for help"
+	host := formatHost(m.llmEndpoint)
+	info := fmt.Sprintf("%s:%s @ %s  |  Press ? for help", m.llmProvider, m.modelName, host)
 
 	gapSize := m.width - lipgloss.Width(status) - lipgloss.Width(info) - 4
 	if gapSize < 0 {
@@ -652,9 +962,42 @@ func formatBool(b bool) string {
 	return "[OFF]"
 }
 
+func formatHost(urlStr string) string {
+	if urlStr == "" {
+		return "localhost"
+	}
+	s := strings.TrimPrefix(urlStr, "http://")
+	s = strings.TrimPrefix(s, "https://")
+	parts := strings.Split(s, "/")
+	return parts[0]
+}
+
+func maskAPIKey(key string) string {
+	if key == "" {
+		return "[Not set / None]"
+	}
+	if len(key) <= 8 {
+		return "••••••••"
+	}
+	return key[:3] + "••••" + key[len(key)-4:]
+}
+
 type ModelsFoundMsg []string
 type GraphDataMsg string
 type TimelineDataMsg string
+
+type TestConnectionMsg struct {
+	Success bool
+	Message string
+}
+
+func testConnectionCmd() tea.Msg {
+	success, _, msg, _ := analysis.TestLLMConnection()
+	return TestConnectionMsg{
+		Success: success,
+		Message: msg,
+	}
+}
 
 func fetchModelsCmd() tea.Msg {
 	models, err := analysis.FetchAvailableModels()

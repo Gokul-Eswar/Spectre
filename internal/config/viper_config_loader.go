@@ -92,3 +92,20 @@ func GetAPIKey(name string) string {
 	// Checks keys.<name> in config or SPECTRE_KEYS_<NAME> in env
 	return viper.GetString("keys." + name)
 }
+
+// SaveConfig writes the current Viper configuration to disk safely.
+func SaveConfig() error {
+	err := viper.WriteConfig()
+	if err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			return viper.SafeWriteConfig()
+		}
+		configFile := viper.ConfigFileUsed()
+		if configFile == "" {
+			configFile = "configs/default.yaml"
+			return viper.WriteConfigAs(configFile)
+		}
+		return err
+	}
+	return nil
+}

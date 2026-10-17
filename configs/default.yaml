@@ -1,68 +1,54 @@
-# Default configuration for SPECTRE
-
-# Database configuration
-database:
-  type: "sqlite" # or "postgres"
-  path: "spectre.db" # for sqlite
-  dsn: "host=localhost port=5432 user=spectre password=spectre dbname=spectre sslmode=disable" # for postgres
-  max_open_conns: 25
-  max_idle_conns: 5
-
-# Extension Store
-extension_registry_url: "file://registry_sample.json"
-
-# Logging configuration
-logging:
-  level: "info"
-  format: "text" # or "json"
-
-# Collector settings
 collectors:
-  dns:
-    enabled: true
-    rate_limit: 10
-  whois:
-    enabled: true
-    rate_limit: 1
-  github:
-    enabled: true
-    rate_limit: 2
-  geo:
-    enabled: true
-    rate_limit: 0.75
-  ports:
-    enabled: true
-    mode: "default" # "default" (20 ports), "top-100", "custom"
-    rate_limit: 0.2
-    custom_ports: []
-
-# Ethics & Safety
+    dns:
+        enabled: true
+        rate_limit: 10
+    geo:
+        enabled: true
+        rate_limit: 0.75
+    github:
+        enabled: true
+        rate_limit: 2
+    ports:
+        custom_ports: []
+        enabled: true
+        mode: default
+        rate_limit: 0.2
+    whois:
+        enabled: true
+        rate_limit: 1
+database:
+    dsn: host=localhost port=5432 user=spectre password=spectre dbname=spectre sslmode=disable
+    max_idle_conns: 5
+    max_open_conns: 25
+    path: spectre.db
+    type: sqlite
 ethics:
-  blacklist:
-    - ".gov"
-    - ".mil"
-    - "localhost"
-    - "127.0.0.1"
-  whitelist: []
-
-# LLM Configuration
-llm:
-  provider: "ollama"
-  url: "http://localhost:11434/api/generate"
-  model: "llama3"
-  api_key: ""
-  timeout: 120
-
-# HTTP Configuration (Ghost Mode)
+    blacklist:
+        - .gov
+        - .mil
+        - localhost
+        - 127.0.0.1
+    whitelist: []
+extension_registry_url: file://registry_sample.json
 ghost_mode: false
 http:
-  proxy: "" # Global HTTP proxy
-  tor_proxy: "socks5://127.0.0.1:9050" # Default Tor SOCKS5 proxy
-  strict: false # If true, fail-closed if proxy is unreachable
-  insecure_skip_verify: false
-
-# API Server Configuration
+    insecure_skip_verify: false
+    proxy: ""
+    strict: false
+    tor_proxy: socks5://127.0.0.1:9050
+llm:
+    api_key: ""
+    max_tokens: 4096
+    model: llama3
+    provider: ollama
+    temperature: 0.7
+    timeout: 120
+    url: http://localhost:11434
+logging:
+    format: text
+    level: info
 server:
-  port: 8080
-  api_key: "" # Leave empty for no authentication (not recommended for collaborative use)
-  cors_allowed_origins: ["*"]
+    api_key: ""
+    cors_allowed_origins:
+        - '*'
+    port: 8080

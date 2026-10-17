@@ -7,6 +7,7 @@ import (
 	"github.com/Gokul-Eswar/Spectre/internal/analysis"
 	"github.com/Gokul-Eswar/Spectre/internal/storage"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var llmCmd = &cobra.Command{
@@ -27,6 +28,12 @@ var queryCmd = &cobra.Command{
 			return err
 		}
 
+		if !cmd.Flags().Changed("model") {
+			if cfgModel := viper.GetString("llm.model"); cfgModel != "" {
+				modelName = cfgModel
+			}
+		}
+
 		question := strings.Join(args, " ")
 		fmt.Printf("Querying case %s about: %s...\n", caseID, question)
 
@@ -45,6 +52,12 @@ var visionCmd = &cobra.Command{
 	Short: "Perform visual analysis on an image using a vision LLM",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if !cmd.Flags().Changed("model") {
+			if cfgModel := viper.GetString("llm.model"); cfgModel != "" {
+				modelName = cfgModel
+			}
+		}
+
 		imagePath := args[0]
 		prompt := "Describe this image in detail. Focus on text, logos, or identifying features."
 		if len(args) > 1 {

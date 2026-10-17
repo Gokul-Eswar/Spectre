@@ -1,66 +1,81 @@
-# Binaries for programs and plugins
+# Binaries and Compiled Programs
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+spectre
+spectre-analyzer
+spectre-analyzer.exe
+bin/
+build/
+dist/
 
-# Test binary, built with `go test -c`
+# Test binaries and coverage
 *.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 coverage*
+.coverage
+.coverage.*
+htmlcov/
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
+# Go workspace
 go.work
 
-# IDE specific files
-.idea/
-.vscode/
-.DS_Store
-
-# Python
+# Python virtual environments & bytecode
 .venv/
 venv/
 env/
 ENV/
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.coverage
-.coverage.*
 
-# Agent & Temporary
-.gemini/
-.gemini-clipboard/
-tmp/
-conductor/setup_state.json
-
-# Runtime Data & Logs
-logs/
+# Runtime Storage, Evidence & Databases
 evidence_storage/
+logs/
+**/logs/
+*.log
+*.jsonl
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
 *.sqlite3
-*.log
 
-# Build Artifacts
+# Generated Reports & Visualizations
+report_*.md
+report_*.pdf
+case_report.*
+investigation_report.*
+generated_graph.html
+graph_*.html
 
-bin/
-build/
-dist/
+# Secrets and Environment Files
+*.env
+*.env.*
+*.key
+*.pem
 
-spectre
+# Agent & Temporary Files
+.gemini/
+.gemini-clipboard/
+tmp/
+temp/
+scratch/
+conductor/setup_state.json
 startup_perf.json
 
-*.env
-
-*.env.*
+# IDE & OS Specific Files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -88,14 +89,98 @@ func (r *Request) Validate() error {
 
 // LLMConfig holds authorization and connection coordinates for local/remote LLM servers.
 type LLMConfig struct {
-	// Provider specifies the backend platform (e.g. "ollama", "openai", "local").
+	// Provider specifies the backend platform (e.g. "ollama", "openai", "anthropic", "gemini", "groq", "openrouter", "lmstudio", "localai", "custom").
 	Provider string `json:"provider"`
-	// URL points to the API endpoint (e.g., "http://localhost:11434/api/generate").
+	// URL points to the API endpoint (e.g., "http://localhost:11434", "https://api.openai.com/v1").
 	URL string `json:"url"`
 	// APIKey is used for authenticated backends.
 	APIKey string `json:"api_key"`
 	// Timeout controls how long we wait for the model to reply before breaking the request (in seconds).
 	Timeout int `json:"timeout"`
+	// Temperature controls sampling temperature (optional).
+	Temperature float64 `json:"temperature,omitempty"`
+	// MaxTokens limits output length (optional).
+	MaxTokens int `json:"max_tokens,omitempty"`
+}
+
+// GetLLMConfig builds an LLMConfig from Viper, filling provider-specific defaults if values are omitted.
+func GetLLMConfig() LLMConfig {
+	provider := strings.ToLower(strings.TrimSpace(viper.GetString("llm.provider")))
+	if provider == "" {
+		provider = "ollama"
+	}
+
+	url := strings.TrimSpace(viper.GetString("llm.url"))
+	if url == "" {
+		url = GetDefaultURLForProvider(provider)
+	}
+
+	timeout := viper.GetInt("llm.timeout")
+	if timeout <= 0 {
+		timeout = 120
+	}
+
+	apiKey := strings.TrimSpace(viper.GetString("llm.api_key"))
+	if apiKey == "" {
+		apiKey = strings.TrimSpace(viper.GetString("keys." + provider))
+	}
+
+	return LLMConfig{
+		Provider:    provider,
+		URL:         url,
+		APIKey:      apiKey,
+		Timeout:     timeout,
+		Temperature: viper.GetFloat64("llm.temperature"),
+		MaxTokens:   viper.GetInt("llm.max_tokens"),
+	}
+}
+
+// GetDefaultURLForProvider returns standard default endpoints for each supported provider.
+func GetDefaultURLForProvider(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "openai":
+		return "https://api.openai.com/v1"
+	case "anthropic":
+		return "https://api.anthropic.com/v1"
+	case "gemini":
+		return "https://generativelanguage.googleapis.com/v1beta/openai"
+	case "groq":
+		return "https://api.groq.com/openai/v1"
+	case "openrouter":
+		return "https://openrouter.ai/api/v1"
+	case "lmstudio":
+		return "http://localhost:1234/v1"
+	case "localai":
+		return "http://localhost:8080/v1"
+	case "ollama":
+		return "http://localhost:11434"
+	default:
+		return "http://localhost:11434"
+	}
+}
+
+// GetDefaultModelForProvider returns the recommended starter model for each provider.
+func GetDefaultModelForProvider(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case "openai":
+		return "gpt-4o-mini"
+	case "anthropic":
+		return "claude-3-5-sonnet-20241022"
+	case "gemini":
+		return "gemini-1.5-flash"
+	case "groq":
+		return "llama-3.3-70b-versatile"
+	case "openrouter":
+		return "meta-llama/llama-3.3-70b-instruct"
+	case "lmstudio":
+		return "local-model"
+	case "localai":
+		return "gpt-4"
+	case "ollama":
+		return "llama3"
+	default:
+		return "llama3"
+	}
 }
 
 // IndexEvidence triggers the Python analyzer to perform vector store ingestion of all evidence files for a case.

@@ -72,21 +72,13 @@ func (e *Engine) Execute(userInput string) (string, error) {
 			CaseID:   e.CaseID,
 			Messages: e.History,
 			Tools:    e.Tools,
-			Model:    viper.GetString("llm.model"),
-			LLMConfig: analyzer.LLMConfig{
-				Provider: viper.GetString("llm.provider"),
-				URL:      viper.GetString("llm.url"),
-				APIKey:   viper.GetString("llm.api_key"),
-				Timeout:  viper.GetInt("llm.timeout"),
-			},
+			Model:     viper.GetString("llm.model"),
+			LLMConfig: analyzer.GetLLMConfig(),
 		}
 
-		// Set default values if config settings are missing
+		// Set default values if model is missing
 		if req.Model == "" {
-			req.Model = "llama3"
-		}
-		if req.LLMConfig.URL == "" {
-			req.LLMConfig.URL = "http://localhost:11434/api/chat"
+			req.Model = analyzer.GetDefaultModelForProvider(req.LLMConfig.Provider)
 		}
 
 		// Invoke the Python CLI bridge subprocess to perform LLM inference.

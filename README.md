@@ -16,7 +16,7 @@ SPECTRE brings everything together in one place. Tell it a website or username, 
 ### 1. Prerequisites
 - **Go:** `1.21+` ([Download Go](https://go.dev/dl/))
 - **Python:** `3.10+` with `pip` ([Download Python](https://www.python.org/downloads/))
-- **Ollama (Optional, for local AI):** ([Download Ollama](https://ollama.ai/)) — Run `ollama pull llama3` and `ollama pull llava`.
+- **AI / LLM (Optional):** Local (Ollama, LM Studio) or Cloud (OpenAI, Anthropic Claude, Google Gemini, Groq, OpenRouter).
 
 ---
 

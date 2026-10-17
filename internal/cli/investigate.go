@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/Gokul-Eswar/Spectre/internal/analysis"
+	"github.com/Gokul-Eswar/Spectre/internal/analyzer"
 	"github.com/Gokul-Eswar/Spectre/internal/collector"
 	"github.com/Gokul-Eswar/Spectre/internal/core"
 	"github.com/Gokul-Eswar/Spectre/internal/storage"
@@ -68,7 +69,8 @@ var investigateCmd = &cobra.Command{
 			investigateModelName = viper.GetString("llm.model")
 		}
 		if investigateModelName == "" {
-			investigateModelName = "llama3:8b"
+			cfg := analyzer.GetLLMConfig()
+			investigateModelName = analyzer.GetDefaultModelForProvider(cfg.Provider)
 		}
 		fmt.Printf("[*] Running AI Analysis with model '%s'...\n", investigateModelName)
 		res, err := analysis.AnalyzeCase(caseID, investigateModelName)

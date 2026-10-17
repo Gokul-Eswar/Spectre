@@ -43,7 +43,7 @@ Every request from the Go bridge is formatted as a single JSON object matching t
   "data": "A natural language query or task-specific parameter...",
   "llm_config": {
     "provider": "ollama",
-    "url": "http://localhost:11434/api/generate",
+    "url": "http://localhost:11434",
     "api_key": "optional-key-here",
     "timeout": 120
   }
@@ -121,6 +121,6 @@ Used for semantic lookup inside ChromaDB.
 ## 4. Python Analyzer Modules (`analyzer/`)
 
 *   **`__main__.py`**: Spawns command-line parser. Validates task targets and routes inputs to respective handlers.
-*   **`llm.py`**: Interacts with local Ollama APIs. Handles request construction, timeout, and connection errors by returning clean fallback JSON buffers.
+*   **`llm.py`**: Interacts with local and cloud LLM APIs (Ollama, OpenAI, Anthropic, Gemini, Groq, OpenRouter, LM Studio, etc.). Handles request construction, timeout, and connection errors by returning clean fallback JSON buffers.
 *   **`vector_store.py`**: Interacts with ChromaDB. Calculates local embeddings using `sentence-transformers` and runs similarity index lookups.
 *   **`graph_viz.py`**: Connects entities, formats network coordinates, and creates PyVis templates.

@@ -12,7 +12,6 @@ import (
 	"github.com/Gokul-Eswar/Spectre/internal/analyzer"
 	"github.com/Gokul-Eswar/Spectre/internal/core"
 	"github.com/Gokul-Eswar/Spectre/internal/storage"
-	"github.com/spf13/viper"
 )
 
 // QueryCase runs a question-answer flow over a case by reusing the same
@@ -48,12 +47,7 @@ func QueryCase(caseID string, model string, question string) (string, error) {
 		Context:  contextData,
 		Model:    model,
 		Data:     question, // Pass question as data
-		LLMConfig: analyzer.LLMConfig{
-			Provider: viper.GetString("llm.provider"),
-			URL:      viper.GetString("llm.url"),
-			APIKey:   viper.GetString("llm.api_key"),
-			Timeout:  viper.GetInt("llm.timeout"),
-		},
+		LLMConfig: analyzer.GetLLMConfig(),
 	}
 
 	// 4. Run Task
@@ -98,12 +92,7 @@ func AnalyzeImage(imagePath string, prompt string, model string) (string, error)
 		Context: base64Str,         // Pass base64 image here
 		Model:   model,
 		Data:    prompt, // Pass prompt here
-		LLMConfig: analyzer.LLMConfig{
-			Provider: viper.GetString("llm.provider"),
-			URL:      viper.GetString("llm.url"),
-			APIKey:   viper.GetString("llm.api_key"),
-			Timeout:  viper.GetInt("llm.timeout"),
-		},
+		LLMConfig: analyzer.GetLLMConfig(),
 	}
 
 	responseJSON, err := analyzer.GlobalTaskRunner.Run(req)
@@ -172,12 +161,7 @@ func AnalyzeCase(caseID string, model string) (*core.Analysis, error) {
 		CaseName: c.Name,
 		Context:  contextData,
 		Model:    model,
-		LLMConfig: analyzer.LLMConfig{
-			Provider: viper.GetString("llm.provider"),
-			URL:      viper.GetString("llm.url"),
-			APIKey:   viper.GetString("llm.api_key"),
-			Timeout:  viper.GetInt("llm.timeout"),
-		},
+		LLMConfig: analyzer.GetLLMConfig(),
 	}
 
 	if err := req.Validate(); err != nil {

@@ -41,7 +41,7 @@ Both work together through a simple request system.
 
 2. **LLM Analyzer** (`llm.py`)
    - Reads all your evidence
-   - Asks questions to the AI (via Ollama)
+   - Asks questions to the AI (via configured local or cloud LLM)
    - Finds patterns and risks
    - Writes reports
 
