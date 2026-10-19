@@ -19,30 +19,36 @@ Before starting, make sure you have these installed:
 
 ---
 
-## Windows Users (Easiest Way)
+## Windows Users (Easiest Way: Single-Command Installer)
 
-**Step 1:** Open PowerShell as a regular user and allow scripts to run:
+### One-Line Install
+Open PowerShell as Administrator and run:
 ```powershell
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+powershell -NoProfile -Command "$u='https://github.com/Gokul-Eswar/Spectre/releases/latest/download/Spectre-Setup-x64.exe';$o=\"$env:TEMP\Spectre-Setup.exe\";Invoke-WebRequest $u -OutFile $o; Start-Process -FilePath $o -ArgumentList '/VERYSILENT','/NORESTART' -Wait"
 ```
 
-**Step 2:** Go to the SPECTRE folder and run:
+### Recommended Secure Install (with Checksum Verification)
+Replace `<SHA256_HASH>` with the checksum listed on the release page:
 ```powershell
-.\install.ps1
+$url = 'https://github.com/Gokul-Eswar/Spectre/releases/latest/download/Spectre-Setup-x64.exe'
+$out = "$env:TEMP\Spectre-Setup.exe"
+Invoke-WebRequest -Uri $url -OutFile $out
+$expected = '<SHA256_HASH>'
+if ((Get-FileHash -Path $out -Algorithm SHA256).Hash -ne $expected) {
+    Write-Error 'Checksum mismatch — aborting'
+    exit 1
+}
+Start-Process -FilePath $out -ArgumentList '/VERYSILENT','/NORESTART' -Wait
 ```
 
 This will:
-- ✓ Build the SPECTRE program
-- ✓ Create a Python environment (`.venv` folder)
-- ✓ Install all required libraries
-
-**Step 3 (Optional):** Want to run `spectre` from any terminal? Run:
-```powershell
-.\setup_global.ps1
-```
-(Restart your terminal after this)
+- ✓ Install SPECTRE to `C:\Program Files\SPECTRE`
+- ✓ Automatically add SPECTRE to your system `PATH`
+- ✓ Create Start Menu shortcuts
+- ✓ Register uninstaller in Windows Settings / Add or Remove Programs
 
 ---
+
 
 ## Linux & macOS (Manual Setup)
 

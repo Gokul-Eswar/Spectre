@@ -1,0 +1,169 @@
+name: Release Windows Installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve Version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $ver = "${{ github.event.inputs.version }}"
+          } else {
+            $ver = "${{ github.ref_name }}"
+          }
+          if (-not $ver.StartsWith("v")) {
+            $ver = "v$ver"
+          }
+          Write-Host "Resolved Version: $ver"
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Setup Code-Signing Certificate (if configured)
+        id: cert
+        shell: pwsh
+        env:
+          CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+        run: |
+          if ($env:CERT_BASE64) {
+            $certPath = "$env:TEMP\cert.pfx"
+            [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:CERT_BASE64))
+            Write-Host "[+] Decoded code-signing certificate to $certPath"
+            "cert_path=$certPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            Write-Host "[i] WINDOWS_CERT_BASE64 secret not set. Installer will be unsigned."
+            "cert_path=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+
+      - name: Build Full-Bundle Installer & Compute SHA256
+        shell: pwsh
+        env:
+          CERT_PW: ${{ secrets.CERT_PASSWORD }}
+        run: |
+          $certPath = "${{ steps.cert.outputs.cert_path }}"
+          $version = "${{ steps.version.outputs.version }}"
+
+          $buildArgs = @{
+            Version = $version
+          }
+          if ($certPath) {
+            $buildArgs["CertificatePath"] = $certPath
+            if ($env:CERT_PW) {
+              $buildArgs["CertificatePassword"] = $env:CERT_PW
+            }
+          }
+
+          ./scripts/build_windows_installer.ps1 @buildArgs
+
+      - name: Clean Temporary Certificate
+        if: always()
+        shell: pwsh
+        run: |
+          $certPath = "${{ steps.cert.outputs.cert_path }}"
+          if ($certPath -and (Test-Path $certPath)) {
+            Remove-Item -Force $certPath
+          }
+
+      - name: Prepare Release Notes with Install Command
+        id: release_notes
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $shaContent = Get-Content "dist/Spectre-Setup-x64.exe.sha256" -Raw
+          $hash = ($shaContent -split '\s+')[0].Trim().ToUpper()
+
+          $notes = @"
+# 🕵️ SPECTRE $version — Windows Full-Bundle Release
+
+This is a standalone, single-executable Windows installer bundled with all collectors, web UI assets, and analyzer configuration.
+
+---
+
+### 🚀 One-Line Copy-Paste Install (PowerShell)
+
+Run in **PowerShell as Administrator**:
+
+````powershell
+powershell -NoProfile -Command "`$u='https://github.com/Gokul-Eswar/Spectre/releases/download/$version/Spectre-Setup-x64.exe';`$o=`"`$env:TEMP\Spectre-Setup.exe`";Invoke-WebRequest `$u -OutFile `$o; if((Get-FileHash `$o -Algorithm SHA256).Hash -ne '$hash'){Write-Error 'Checksum mismatch'; exit 1}; Start-Process -FilePath `$o -ArgumentList '/VERYSILENT','/NORESTART' -Wait"
+````
+
+---
+
+### 🛡️ Recommended Multi-Step Install (Verify & Run)
+
+````powershell
+`$url = 'https://github.com/Gokul-Eswar/Spectre/releases/download/$version/Spectre-Setup-x64.exe'
+`$out = "`$env:TEMP\Spectre-Setup.exe"
+Invoke-WebRequest -Uri `$url -OutFile `$out
+`$expected = '$hash'
+if ((Get-FileHash -Path `$out -Algorithm SHA256).Hash -ne `$expected) {
+    Write-Error 'Checksum mismatch — aborting'
+    exit 1
+}
+Start-Process -FilePath `$out -ArgumentList '/VERYSILENT','/NORESTART' -Wait
+````
+
+---
+
+### 📦 Artifact Details
+
+| Artifact | Description | SHA256 Checksum |
+| :--- | :--- | :--- |
+| **`Spectre-Setup-x64.exe`** | Self-contained Windows x64 Installer | \`$hash\` |
+| **`Spectre-Setup-x64.exe.sha256`** | Checksum verification file | — |
+
+- **Install Directory**: `C:\Program Files\SPECTRE`
+- **PATH Integration**: Automatically added to system `PATH` (usable immediately from any new terminal).
+- **Silent Flags**: `/VERYSILENT /NORESTART` (Inno Setup standard)
+- **Uninstall**: Standard Windows Settings > **Installed Apps** > Uninstall, or run `C:\Program Files\SPECTRE\unins000.exe /VERYSILENT`.
+"@
+
+          Set-Content -Path "dist/RELEASE_NOTES.md" -Value $notes -Encoding utf8
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: SPECTRE ${{ steps.version.outputs.version }}
+          body_path: dist/RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          files: |
+            dist/Spectre-Setup-x64.exe
+            dist/Spectre-Setup-x64.exe.sha256

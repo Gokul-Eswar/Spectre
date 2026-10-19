@@ -9,7 +9,33 @@ Welcome! This page helps you find the right guide for what you want to do.
 **New to SPECTRE?** Start here:
 
 - **[Getting Started Guide](GETTING_STARTED.md)** ← Begin here! A walk-through of your first investigation in 10 minutes.
-- **[Installation Guide](INSTALLATION.md)** ← How to set up SPECTRE on your computer.
+- **[Installation Guide](INSTALLATION.md)** ← Complete guide for Windows, Linux, macOS, and Tor setup.
+
+---
+
+## ⚡ Quick Installation
+
+### Windows (Single-Command Silent Install)
+Open PowerShell as Administrator and run:
+```powershell
+powershell -NoProfile -Command "$u='https://github.com/Gokul-Eswar/Spectre/releases/latest/download/Spectre-Setup-x64.exe';$o=\"$env:TEMP\Spectre-Setup.exe\";Invoke-WebRequest $u -OutFile $o; Start-Process -FilePath $o -ArgumentList '/VERYSILENT','/NORESTART' -Wait"
+```
+
+#### Recommended Secure Install (with SHA256 Verification):
+Replace `<SHA256_HASH>` with the checksum listed on the [Releases page](https://github.com/Gokul-Eswar/Spectre/releases):
+```powershell
+$url = 'https://github.com/Gokul-Eswar/Spectre/releases/latest/download/Spectre-Setup-x64.exe'
+$out = "$env:TEMP\Spectre-Setup.exe"
+Invoke-WebRequest -Uri $url -OutFile $out
+$expected = '<SHA256_HASH>'
+if ((Get-FileHash -Path $out -Algorithm SHA256).Hash -ne $expected) {
+    Write-Error 'Checksum mismatch — aborting'
+    exit 1
+}
+Start-Process -FilePath $out -ArgumentList '/VERYSILENT','/NORESTART' -Wait
+```
+
+*For Linux, macOS, or building from source, see the full **[Installation Guide](INSTALLATION.md)**.*
 
 ---
 

@@ -22,30 +22,30 @@ SPECTRE brings everything together in one place. Tell it a website or username, 
 
 ### 2. Installation
 
-#### Windows (One-Click Setup)
-Run the automated installation script in PowerShell:
+#### Windows (Single-Command Silent Install)
+
+Open PowerShell as Administrator and run the one-line installer (automatically downloads, verifies SHA256, and installs):
+
 ```powershell
-.\install.ps1
+powershell -NoProfile -Command "$u='https://github.com/Gokul-Eswar/Spectre/releases/latest/download/Spectre-Setup-x64.exe';$o=\"$env:TEMP\Spectre-Setup.exe\";Invoke-WebRequest $u -OutFile $o; Start-Process -FilePath $o -ArgumentList '/VERYSILENT','/NORESTART' -Wait"
 ```
-To enable global command line access from any terminal:
+
+##### Recommended Secure Multi-Step Install (with Checksum Verification):
+Replace `<SHA256_HASH>` with the checksum listed on the [Releases page](https://github.com/Gokul-Eswar/Spectre/releases):
+
 ```powershell
-.\setup_global.ps1
+$url = 'https://github.com/Gokul-Eswar/Spectre/releases/latest/download/Spectre-Setup-x64.exe'
+$out = "$env:TEMP\Spectre-Setup.exe"
+Invoke-WebRequest -Uri $url -OutFile $out
+$expected = '<SHA256_HASH>'
+if ((Get-FileHash -Path $out -Algorithm SHA256).Hash -ne $expected) {
+    Write-Error 'Checksum mismatch — aborting'
+    exit 1
+}
+Start-Process -FilePath $out -ArgumentList '/VERYSILENT','/NORESTART' -Wait
 ```
 
-#### Linux & macOS / Manual Setup
-```bash
-# 1. Clone repository
-git clone https://github.com/Gokul-Eswar/Spectre.git
-cd Spectre
-
-# 2. Build the Go binary
-go build -o spectre cmd/spectre/main.go
-
-# 3. Setup Python virtual environment & dependencies
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r analyzer/requirements.txt
-```
+*Installed to `C:\Program Files\SPECTRE` and automatically added to system `PATH`.*
 
 ## 📄 License
 
