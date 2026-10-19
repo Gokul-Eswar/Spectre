@@ -105,8 +105,11 @@ type model struct {
 }
 
 func InitialModel() model {
-	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	l := list.New([]list.Item{}, NewClaudeListDelegate(), 0, 0)
 	l.Title = "CASES"
+	l.Styles.Title = lipgloss.NewStyle().
+		Foreground(ColorClaudeTerracotta).
+		Bold(true)
 
 	cfg := analyzer.GetLLMConfig()
 	activeModel := viper.GetString("llm.model")
@@ -115,6 +118,8 @@ func InitialModel() model {
 	}
 
 	ti := textinput.New()
+	ti.Prompt = "❯ "
+	ti.PromptStyle = lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true)
 	ti.CharLimit = 256
 	ti.Width = 60
 
@@ -685,55 +690,75 @@ func (m model) View() string {
 }
 
 func (m model) renderHeader() string {
-	caseInfo := "No Case Selected"
+	logo := lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true).Render("✻ SPECTRE")
+	ver := StylePillSubtle.Render("v1.0")
+	brand := fmt.Sprintf("%s %s", logo, ver)
+
+	casePill := StyleDim.Render("○ No Case Selected")
 	if m.selectedCaseID != "" {
-		caseInfo = fmt.Sprintf("Case: %s", m.selectedCaseID)
+		casePill = lipgloss.NewStyle().
+			Foreground(ColorClaudeText).
+			Background(ColorClaudeSurfaceHigh).
+			Bold(true).
+			Padding(0, 1).
+			Render(fmt.Sprintf("⬡ %s", m.selectedCaseID))
 	}
 
-	title := StyleTitle.Render("SPECTRE v1.0")
-	info := StyleMuted.Render(fmt.Sprintf("%s  |  LLM: [%s] %s", caseInfo, m.llmProvider, m.modelName))
+	modelPill := lipgloss.NewStyle().
+		Foreground(ColorClaudeSecondary).
+		Background(ColorClaudeSurfaceHigh).
+		Padding(0, 1).
+		Render(fmt.Sprintf("⚡ [%s] %s", m.llmProvider, m.modelName))
 
-	gapSize := m.width - lipgloss.Width(title) - lipgloss.Width(info) - 4
+	left := lipgloss.JoinHorizontal(lipgloss.Center, brand, "  ", casePill)
+	right := modelPill
+
+	gapSize := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 4
 	if gapSize < 0 {
 		gapSize = 0
 	}
 
-	header := lipgloss.JoinHorizontal(lipgloss.Center, title, strings.Repeat(" ", gapSize), info)
+	header := lipgloss.JoinHorizontal(lipgloss.Center, left, strings.Repeat(" ", gapSize), right)
 	return StyleHeader.Width(m.width).Render(header)
 }
 
 func (m model) renderNav() string {
 	views := []struct {
 		state sessionState
+		icon  string
 		label string
 	}{
-		{ViewCases, "Cases"},
-		{ViewAnalysis, "Analysis"},
-		{ViewEvidence, "Evidence"},
-		{ViewGraph, "Graph"},
-		{ViewTimeline, "Timeline"},
-		{ViewReports, "Reports"},
-		{ViewChat, "Chat"},
-		{ViewSettings, "Settings"},
-		{ViewDashboard, "Web Dashboard"},
-		{ViewCollection, "Collection"},
+		{ViewCases, IconFolder, "Cases"},
+		{ViewAnalysis, IconBrain, "Analysis"},
+		{ViewEvidence, IconEvidence, "Evidence"},
+		{ViewGraph, IconGraph, "Graph"},
+		{ViewTimeline, IconTimeline, "Timeline"},
+		{ViewReports, IconReport, "Reports"},
+		{ViewChat, IconChat, "Chat"},
+		{ViewSettings, IconSettings, "Settings"},
+		{ViewDashboard, IconWeb, "Web Dashboard"},
+		{ViewCollection, IconRunner, "Collection"},
 	}
 
 	var s strings.Builder
 	s.WriteString("\n")
 	for i, v := range views {
-		line := v.label
+		line := fmt.Sprintf("%s %s", v.icon, v.label)
 
 		prefix := "  "
-		if m.state == v.state {
-			prefix = "▶ "
+		if m.navCursor == i {
+			prefix = lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true).Render("❯ ")
+		} else if m.state == v.state {
+			prefix = lipgloss.NewStyle().Foreground(ColorClaudePeach).Render("● ")
 		}
 
-		content := line
+		var content string
 		if m.navCursor == i {
 			content = StyleSelectedNav.Render(line)
 		} else if m.state == v.state {
-			content = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Bold(true).Render(line)
+			content = lipgloss.NewStyle().Foreground(ColorClaudeText).Bold(true).Render(line)
+		} else {
+			content = StyleMuted.Render(line)
 		}
 
 		s.WriteString(prefix)
@@ -741,9 +766,15 @@ func (m model) renderNav() string {
 		s.WriteString("\n")
 	}
 
-	style := StyleNav.Height(m.height - 4).Width(20)
+	s.WriteString("\n")
+	s.WriteString(StyleDim.Render(" ── Shortcuts ──\n"))
+	s.WriteString(StyleDim.Render(" [Tab] Focus\n"))
+	s.WriteString(StyleDim.Render(" [j/k] Navigate\n"))
+	s.WriteString(StyleDim.Render(" [↵]   Select\n"))
+
+	style := StyleNav.Height(m.height - 4).Width(22)
 	if m.focusNav {
-		style = style.BorderForeground(ColorAccent)
+		style = style.BorderForeground(ColorClaudeTerracotta)
 	}
 	return style.Render(s.String())
 }
@@ -754,14 +785,30 @@ func (m model) renderContent() string {
 	case ViewCases:
 		content = m.caseList.View()
 	case ViewEvidence:
-		content = fmt.Sprintf("EVIDENCE — %s\n\n", m.selectedCaseID) + m.entityTable.View()
+		var b strings.Builder
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(ColorClaudeTerracotta).Render("✦ EVIDENCE DOSSIER"))
+		if m.selectedCaseID != "" {
+			b.WriteString(StyleMuted.Render(fmt.Sprintf("  •  Case: %s", m.selectedCaseID)))
+		}
+		b.WriteString("\n" + StyleDim.Render(strings.Repeat("─", 45)) + "\n\n")
+		b.WriteString(m.entityTable.View())
+		content = b.String()
+
 	case ViewAnalysis:
 		if m.selectedCaseID == "" {
-			content = "No case selected. Please select a case first (Press 1)."
+			content = StyleCard.Render("○ No case selected. Please select a case first (Press 1).")
 		} else {
 			switch m.analysisStatus {
 			case AnalysisIdle:
-				content = "Press '2' to start analysis."
+				content = StyleCard.Render(fmt.Sprintf(
+					"%s\n%s\n\nActive Case : %s\nEngine      : %s (%s)\n\nPress %s to start analysis.",
+					StyleTitle.Render("✻ AI INVESTIGATION ENGINE"),
+					StyleDim.Render(strings.Repeat("─", 46)),
+					m.selectedCaseID,
+					m.modelName,
+					m.llmProvider,
+					lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true).Render("'2'"),
+				))
 			case AnalysisRunning:
 				steps := []string{
 					"Collecting evidence...",
@@ -770,48 +817,65 @@ func (m model) renderContent() string {
 					"Synthesizing conclusion...",
 				}
 				var s strings.Builder
-				s.WriteString(fmt.Sprintf("ANALYSIS — Case %s\n", m.selectedCaseID))
-				s.WriteString("────────────────────────────────────\n\n")
-				s.WriteString("⠋ Running analysis pipeline...\n\n")
+				s.WriteString(StyleTitle.Render(fmt.Sprintf("✻ ANALYSIS — Case %s", m.selectedCaseID)) + "\n")
+				s.WriteString(StyleDim.Render(strings.Repeat("─", 46)) + "\n\n")
+				s.WriteString(lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Render("⠋ Running analysis pipeline...\n\n"))
 
 				for i, step := range steps {
 					if m.analysisStep > i {
-						s.WriteString(fmt.Sprintf(" [✓] %s\n", step))
+						s.WriteString(fmt.Sprintf("  %s %s\n", lipgloss.NewStyle().Foreground(ColorClaudeSuccess).Render("✔"), step))
 					} else if m.analysisStep == i {
-						s.WriteString(fmt.Sprintf(" [▶] %s\n", step))
+						s.WriteString(fmt.Sprintf("  %s %s\n", lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Render("✻"), lipgloss.NewStyle().Bold(true).Foreground(ColorClaudeText).Render(step)))
 					} else {
-						s.WriteString(fmt.Sprintf(" [ ] %s\n", step))
+						s.WriteString(fmt.Sprintf("  %s %s\n", StyleDim.Render("○"), StyleDim.Render(step)))
 					}
 				}
-				content = s.String()
+				content = StyleCard.Render(s.String())
 			case AnalysisComplete:
 				content = m.analysisResult
 			case AnalysisError:
-				content = StyleMuted.Foreground(ColorError).Render(fmt.Sprintf("Error: %s", m.analysisError))
+				content = StyleCard.BorderForeground(ColorClaudeError).Render(fmt.Sprintf("✖ Analysis Pipeline Error:\n\n%s", m.analysisError))
 			}
 		}
 	case ViewGraph:
 		if m.graphData == "" {
-			content = "Loading graph data..."
+			content = StyleCard.Render("Loading graph data...")
 		} else {
 			content = m.graphData
 		}
 	case ViewTimeline:
 		if m.timelineData == "" {
-			content = "Loading timeline data..."
+			content = StyleCard.Render("Loading timeline data...")
 		} else {
 			content = m.timelineData
 		}
 	case ViewReports:
-		status := ""
+		var b strings.Builder
+		b.WriteString(StyleTitle.Render("✦ INVESTIGATION REPORTS") + "\n")
+		b.WriteString(StyleDim.Render(strings.Repeat("─", 48)) + "\n\n")
+
+		card1 := StyleCard.Width(52).Render(fmt.Sprintf("%s\n%s",
+			lipgloss.NewStyle().Bold(true).Foreground(ColorClaudeTerracotta).Render("[ 1 ] Generate Markdown Report"),
+			StyleMuted.Render("Export structured markdown dossier into workspace.")))
+
+		card2 := StyleCard.Width(52).Render(fmt.Sprintf("%s\n%s",
+			lipgloss.NewStyle().Bold(true).Foreground(ColorClaudePeach).Render("[ p ] Generate Professional PDF"),
+			StyleMuted.Render("Compile an executive branded investigation brief PDF.")))
+
+		card3 := StyleCard.Width(52).Render(fmt.Sprintf("%s\n%s",
+			lipgloss.NewStyle().Bold(true).Foreground(ColorClaudeInfo).Render("[ v ] View Latest Analysis"),
+			StyleMuted.Render("Inspect automated AI findings, risks, and next steps.")))
+
+		b.WriteString(lipgloss.JoinVertical(lipgloss.Left, card1, card2, card3))
+
 		if m.analysisStatus == AnalysisComplete {
-			status = "\n\n" + StyleMuted.Foreground(ColorSuccess).Render(m.analysisResult)
+			b.WriteString("\n\n" + StyleCard.BorderForeground(ColorClaudeSuccess).Render(lipgloss.NewStyle().Foreground(ColorClaudeSuccess).Render("✔ "+m.analysisResult)))
 		}
-		content = "REPORTS\n───────\n\n[1] Generate Markdown Report\n[p] Generate Professional PDF\n[v] View Latest Analysis" + status
+		content = b.String()
 
 	case ViewChat:
 		if m.selectedCaseID == "" {
-			content = "No case selected. Please select a case first (Press 1)."
+			content = StyleCard.Render("○ No case selected. Please select a case first (Press 1).")
 		} else {
 			content = m.chat.View()
 		}
@@ -823,26 +887,23 @@ func (m model) renderContent() string {
 			switch m.editSettingIndex {
 			case SettingLLMModel:
 				title = "Enter Model Name"
-				hint = "e.g. gpt-4o, llama3, claude-3-5-sonnet-20241022, mistral"
+				hint = "e.g. claude-3-7-sonnet, gpt-4o, llama3, deepseek-r1"
 			case SettingLLMEndpoint:
 				title = "Enter LLM Endpoint Base URL"
-				hint = "e.g. http://localhost:11434, https://api.openai.com/v1, http://localhost:1234/v1"
+				hint = "e.g. https://api.anthropic.com, http://localhost:11434, https://api.openai.com/v1"
 			case SettingLLMKey:
 				title = "Enter API Key"
 				hint = "Paste your secret API key (leave empty to clear)"
 			}
 
-			boxStyle := lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(ColorAccent).
-				Padding(1, 2).
-				Width(65)
+			boxStyle := StyleCardFocused.Width(65)
 
 			var b strings.Builder
-			b.WriteString(StyleTitle.Render(title) + "\n\n")
-			b.WriteString(m.settingInput.View() + "\n\n")
-			b.WriteString(StyleMuted.Render(hint) + "\n")
-			b.WriteString(StyleMuted.Render("[Enter: Save | Esc: Cancel]"))
+			b.WriteString(StyleTitle.Render(fmt.Sprintf("✻ %s", title)) + "\n\n")
+			b.WriteString(m.settingInput.View())
+			b.WriteString("\n\n")
+			b.WriteString(StyleDim.Render(hint) + "\n")
+			b.WriteString(StyleDim.Render("[Enter: Save  •  Esc: Cancel]"))
 
 			content = "SETTINGS — EDITING\n──────────────────\n\n" + boxStyle.Render(b.String())
 			break
@@ -887,21 +948,21 @@ func (m model) renderContent() string {
 		}
 
 		var s strings.Builder
-		s.WriteString("SETTINGS & CONFIGURATION\n")
-		s.WriteString("────────────────────────\n\n")
+		s.WriteString(StyleTitle.Render("✦ SETTINGS & CONFIGURATION") + "\n")
+		s.WriteString(StyleDim.Render(strings.Repeat("─", 50)) + "\n\n")
 
 		for i, item := range items {
 			if item.section != "" {
-				s.WriteString(lipgloss.NewStyle().Bold(true).Foreground(ColorAccent).Render(fmt.Sprintf("─── %s ───", item.section)) + "\n")
+				s.WriteString("\n" + lipgloss.NewStyle().Bold(true).Foreground(ColorClaudeTerracotta).Render(fmt.Sprintf("── ✦ %s ──", item.section)) + "\n")
 			}
 
 			cursor := "  "
 			if m.settingsCursor == i {
-				cursor = "> "
+				cursor = lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true).Render("❯ ")
 			}
 
-			lblStyle := lipgloss.NewStyle()
-			valStyle := lipgloss.NewStyle()
+			lblStyle := StyleMuted
+			valStyle := lipgloss.NewStyle().Foreground(ColorClaudeText)
 			if m.settingsCursor == i {
 				lblStyle = StyleSelectedNav
 				valStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF"))
@@ -911,45 +972,61 @@ func (m model) renderContent() string {
 			s.WriteString(line)
 
 			if m.settingsCursor == i && item.hint != "" {
-				s.WriteString("  " + StyleMuted.Render("("+item.hint+")"))
+				s.WriteString("  " + StyleDim.Render("("+item.hint+")"))
 			}
 			s.WriteString("\n")
 		}
 
-		s.WriteString("\n" + StyleMuted.Render("Navigation: 'j'/'k' (Up/Down)  |  'Enter' Select/Cycle  |  'e' Edit Text  |  'r' Scan Models"))
+		s.WriteString("\n" + StyleDim.Render("Navigation: 'j'/'k' (Up/Down)  |  'Enter' Select/Cycle  |  'e' Edit Text  |  'r' Scan Models"))
 		content = s.String()
 
 	case ViewDashboard:
-		content = "Opening Web Dashboard in your default browser...\n\nURL: http://localhost:8080\n\nThe dashboard provides an interactive graph visualization and case management interface."
+		content = StyleCard.Render(fmt.Sprintf(
+			"%s\n%s\n\nInteractive Browser Interface: %s\n\nVisual interactive network graphs, entity manipulation,\nand advanced investigation management dashboard.",
+			StyleTitle.Render("✻ WEB DASHBOARD"),
+			StyleDim.Render(strings.Repeat("─", 50)),
+			lipgloss.NewStyle().Foreground(ColorClaudeInfo).Underline(true).Render("http://localhost:8080"),
+		))
 
 	case ViewCollection:
 		content = m.runner.View()
 
 	default:
-		content = fmt.Sprintf("HIGH-DENSITY INTELLIGENCE SUMMARY\n──────────────────────────────────\nActive Case: %s\nModel Engine: %s (%s)\nStatus: Ready", m.selectedCaseID, m.modelName, m.llmProvider)
+		content = StyleCard.Render(fmt.Sprintf(
+			"%s\n%s\n\nActive Case  : %s\nModel Engine : %s (%s)\nStatus       : Ready",
+			StyleTitle.Render("✻ INTELLIGENCE SUMMARY"),
+			StyleDim.Render(strings.Repeat("─", 45)),
+			m.selectedCaseID,
+			m.modelName,
+			m.llmProvider,
+		))
 	}
 
 	return StyleMain.Width(m.width - 25).Height(m.height - 4).Render(content)
 }
 
 func (m model) renderFooter() string {
-	status := "● Connected"
+	status := lipgloss.NewStyle().Foreground(ColorClaudeSuccess).Bold(true).Render("● Ready")
 	if viper.GetBool("ghost_mode") {
-		status = "👻 GHOST MODE ACTIVE"
+		status = lipgloss.NewStyle().Foreground(ColorClaudeWarning).Bold(true).Render("👻 Ghost Mode Active")
 	}
 
 	host := formatHost(m.llmEndpoint)
-	info := fmt.Sprintf("%s:%s @ %s  |  Press ? for help", m.llmProvider, m.modelName, host)
+	info := fmt.Sprintf("%s @ %s", m.modelName, host)
+	hints := StyleDim.Render("? Help  •  Tab Switch  •  q Quit")
 
-	gapSize := m.width - lipgloss.Width(status) - lipgloss.Width(info) - 4
+	left := status
+	right := fmt.Sprintf("%s   %s", StyleMuted.Render(info), hints)
+
+	gapSize := m.width - lipgloss.Width(left) - lipgloss.Width(right) - 4
 	if gapSize < 0 {
 		gapSize = 0
 	}
 
 	footer := lipgloss.JoinHorizontal(lipgloss.Center,
-		lipgloss.NewStyle().Foreground(ColorSuccess).Render(status),
+		left,
 		strings.Repeat(" ", gapSize),
-		info,
+		right,
 	)
 
 	return StyleStatus.Width(m.width).Render(footer)
@@ -957,9 +1034,9 @@ func (m model) renderFooter() string {
 
 func formatBool(b bool) string {
 	if b {
-		return "[ON]"
+		return lipgloss.NewStyle().Foreground(ColorClaudeSuccess).Bold(true).Render("[● ON]")
 	}
-	return "[OFF]"
+	return StyleDim.Render("[○ OFF]")
 }
 
 func formatHost(urlStr string) string {

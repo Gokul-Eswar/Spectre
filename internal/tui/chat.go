@@ -26,17 +26,25 @@ type chatModel struct {
 
 func newChatModel() chatModel {
 	ti := textinput.New()
-	ti.Placeholder = "Ask the agent anything..."
+	ti.Prompt = "❯ "
+	ti.PromptStyle = lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true)
+	ti.Placeholder = "Ask Claude Code / Spectre anything, run recon, or type /help..."
 	ti.Focus()
-	ti.CharLimit = 256
+	ti.CharLimit = 512
 	ti.Width = 50
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s.Style = lipgloss.NewStyle().Foreground(ColorClaudeTerracotta)
 
 	vp := viewport.New(0, 0)
-	vp.SetContent("Welcome to SPECTRE Chat. Select a case to begin investigation.")
+	welcome := lipgloss.NewStyle().Foreground(ColorClaudeSecondary).Render(
+		"✻ Welcome to SPECTRE Investigation Chat\n" +
+			"Powered by Claude Code autonomous intelligence architecture.\n\n" +
+			"Select a case from [1] Cases or type a question below to begin.\n" +
+			"Type '/help' for investigation workflows and slash commands.\n",
+	)
+	vp.SetContent(welcome)
 
 	return chatModel{
 		textinput: ti,
@@ -53,7 +61,10 @@ func (m *chatModel) setCase(caseID string) {
 	m.caseID = caseID
 	m.engine = agent.NewEngine(caseID)
 	m.messages = []analyzer.Message{}
-	m.viewport.SetContent(fmt.Sprintf("Agent ready for case: %s\nType a message to begin.", caseID))
+
+	banner := lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true).Render(fmt.Sprintf("✻ Agent ready for case: %s\n", caseID)) +
+		StyleDim.Render("Type a message to begin autonomous investigation.\n")
+	m.viewport.SetContent(banner)
 }
 
 type agentResponseMsg struct {
@@ -92,11 +103,11 @@ func (m chatModel) Update(msg tea.Msg) (chatModel, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "enter":
-			if m.thinking || m.textinput.Value() == "" {
+			if m.thinking || strings.TrimSpace(m.textinput.Value()) == "" {
 				return m, nil
 			}
 
-			input := m.textinput.Value()
+			input := strings.TrimSpace(m.textinput.Value())
 			m.appendMessage("user", input)
 			m.textinput.SetValue("")
 			m.thinking = true
@@ -119,22 +130,21 @@ func (m *chatModel) appendMessage(role, content string) {
 
 	var sb strings.Builder
 	for _, msg := range m.messages {
-		roleStyle := lipgloss.NewStyle().Bold(true)
 		switch msg.Role {
 		case "user":
-			roleStyle = roleStyle.Foreground(lipgloss.Color("6"))
-						sb.WriteString(roleStyle.Render("You: "))
-						sb.WriteString(msg.Content)
-						sb.WriteString("\n\n")
+			tag := lipgloss.NewStyle().Foreground(ColorClaudeText).Bold(true).Render("❯ You")
+			sb.WriteString(tag + "\n")
+			sb.WriteString(lipgloss.NewStyle().Foreground(ColorClaudeText).Render(formatIndented(msg.Content)))
+			sb.WriteString("\n\n")
 		case "assistant":
-			roleStyle = roleStyle.Foreground(lipgloss.Color("5"))
-			sb.WriteString(roleStyle.Render("Agent: "))
-			sb.WriteString(msg.Content)
+			tag := lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true).Render("✻ Spectre")
+			sb.WriteString(tag + "\n")
+			sb.WriteString(lipgloss.NewStyle().Foreground(ColorClaudeSecondary).Render(formatIndented(msg.Content)))
 			sb.WriteString("\n\n")
 		case "system":
-			roleStyle = roleStyle.Foreground(lipgloss.Color("8"))
-			sb.WriteString(roleStyle.Render("System: "))
-			sb.WriteString(msg.Content)
+			tag := lipgloss.NewStyle().Foreground(ColorClaudeDim).Bold(true).Render("ℹ System")
+			sb.WriteString(tag + "\n")
+			sb.WriteString(lipgloss.NewStyle().Foreground(ColorClaudeDim).Render(formatIndented(msg.Content)))
 			sb.WriteString("\n\n")
 		}
 	}
@@ -142,18 +152,30 @@ func (m *chatModel) appendMessage(role, content string) {
 	m.viewport.GotoBottom()
 }
 
+func formatIndented(text string) string {
+	lines := strings.Split(text, "\n")
+	for i, l := range lines {
+		lines[i] = "  " + l
+	}
+	return strings.Join(lines, "\n")
+}
+
 func (m chatModel) View() string {
 	spin := ""
 	if m.thinking {
-		spin = m.spinner.View() + " Agent is thinking..."
+		spin = lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Render(m.spinner.View()+" Thinking...") + "\n"
 	}
+
+	boxStyle := StyleInputBoxFocused.Width(m.width - 2)
+	inputView := boxStyle.Render(m.textinput.View())
+	hints := StyleDim.Render("Enter: Send  •  Tab: Switch Pane  •  /help: Guide")
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.viewport.View(),
-		"\n",
 		spin,
-		m.textinput.View(),
+		inputView,
+		hints,
 	)
 }
 
@@ -162,8 +184,5 @@ func (m *chatModel) setSize(w, h int) {
 	m.height = h
 	m.viewport.Width = w
 	m.viewport.Height = h - 6
-	m.textinput.Width = w - 2
+	m.textinput.Width = w - 6
 }
-
-
-

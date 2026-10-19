@@ -47,13 +47,16 @@ The agent can run collectors, search entities, and provide summaries of your cas
 		engine := agent.NewEngine(chatCaseID)
 		reader := bufio.NewReader(os.Stdin)
 
-		fmt.Println("--- SPECTRE AGENT SESSION ---")
-		fmt.Println("Type 'exit' or 'quit' to end session.")
-		fmt.Println("Type '/help' to open the professional guide.")
+		terracotta := lipgloss.Color("#D97757")
+		dim := lipgloss.Color("#71717A")
+		text := lipgloss.Color("#F4F4F5")
+
+		fmt.Println(lipgloss.NewStyle().Foreground(terracotta).Bold(true).Render("✻ SPECTRE AGENT INTERACTIVE SESSION"))
+		fmt.Println(lipgloss.NewStyle().Foreground(dim).Render("Type 'exit' or 'quit' to end session • Type '/help' for command guide"))
 		fmt.Println()
 
 		for {
-			fmt.Print("You > ")
+			fmt.Print(lipgloss.NewStyle().Foreground(text).Bold(true).Render("❯ You: "))
 			input, _ := reader.ReadString('\n')
 			input = strings.TrimSpace(input)
 
@@ -77,50 +80,54 @@ The agent can run collectors, search entities, and provide summaries of your cas
 				continue
 			}
 
-			fmt.Print("[*] Agent is thinking...")
+			fmt.Print(lipgloss.NewStyle().Foreground(terracotta).Render("✻ Agent is thinking..."))
 			response, err := engine.Execute(input)
 			fmt.Print("\r                          \r") // Clear thinking line
 
 			if err != nil {
-				fmt.Printf("\n[!] Error: %v\n", err)
+				fmt.Printf("\n%s %v\n\n", lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444")).Bold(true).Render("✖ Error:"), err)
 				continue
 			}
 
 			if response != "" {
-				fmt.Printf("\nAgent > %s\n\n", response)
+				agentTag := lipgloss.NewStyle().Foreground(terracotta).Bold(true).Render("✻ Agent:")
+				fmt.Printf("\n%s %s\n\n", agentTag, response)
 			}
 		}
 
-		fmt.Println("Session ended.")
+		fmt.Println(lipgloss.NewStyle().Foreground(dim).Render("Session ended."))
 		return nil
 	},
 }
 
 func printHelpGuide() {
+	terracotta := lipgloss.Color("#D97757")
+	dim := lipgloss.Color("#71717A")
+	peach := lipgloss.Color("#E8987E")
+
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("0")).
-		Background(lipgloss.Color("6")).
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Background(terracotta).
 		Padding(0, 2).
 		MarginBottom(1)
 
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("6")).
-		Underline(true).
+		Foreground(terracotta).
 		MarginTop(1).
 		MarginBottom(1)
 
 	cmdStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("3"))
+		Foreground(peach)
 
 	boldStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("15"))
+		Foreground(lipgloss.Color("#FFFFFF"))
 
 	fmt.Println()
-	fmt.Println(titleStyle.Render("SPECTRE INTERACTIVE HELP GUIDE"))
+	fmt.Println(titleStyle.Render("✻ SPECTRE INTERACTIVE HELP GUIDE"))
 	fmt.Println("Welcome to the SPECTRE AI assistant. Here is a guide to help you navigate")
 	fmt.Println("the platform's capabilities and commands.")
 
@@ -146,6 +153,7 @@ func printHelpGuide() {
 	fmt.Println(headerStyle.Render("4. Operational Security (Ghost Mode)"))
 	fmt.Println("  Ensure your proxy (Tor/SOCKS5) configuration is set in configs/default.yaml if you require")
 	fmt.Println("  hardened OpSec. If started with --strict flag, all HTTP actions fail-closed if proxy is offline.")
+	fmt.Println(lipgloss.NewStyle().Foreground(dim).Render(strings.Repeat("─", 65)))
 	fmt.Println()
 }
 

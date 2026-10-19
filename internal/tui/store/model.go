@@ -11,13 +11,22 @@ import (
 )
 
 var (
+	colorTerracotta = lipgloss.Color("#D97757")
+	colorText       = lipgloss.Color("#F4F4F5")
+	colorSecondary  = lipgloss.Color("#A1A1AA")
+	colorDim        = lipgloss.Color("#71717A")
+	colorSuccess    = lipgloss.Color("#10B981")
+	colorError      = lipgloss.Color("#EF4444")
+
 	appStyle   = lipgloss.NewStyle().Padding(1, 2)
 	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFFDF5")).
-			Background(lipgloss.Color("#25A065")).
+			Foreground(colorText).
+			Background(colorTerracotta).
+			Bold(true).
 			Padding(0, 1)
+
 	statusMessageStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.AdaptiveColor{Light: "#04B575", Dark: "#04B575"}).
+				Foreground(colorSuccess).
 				Render
 )
 
@@ -41,10 +50,25 @@ type Model struct {
 func NewModel(mgr *extensions.Manager) Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s.Style = lipgloss.NewStyle().Foreground(colorTerracotta)
 
-	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
-	l.Title = "Spectre Extension Store"
+	delegate := list.NewDefaultDelegate()
+	delegate.Styles.NormalTitle = lipgloss.NewStyle().Foreground(colorText).Padding(0, 0, 0, 2)
+	delegate.Styles.NormalDesc = lipgloss.NewStyle().Foreground(colorDim).Padding(0, 0, 0, 2)
+	delegate.Styles.SelectedTitle = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(colorTerracotta).
+		Foreground(colorTerracotta).
+		Bold(true).
+		Padding(0, 0, 0, 1)
+	delegate.Styles.SelectedDesc = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(colorTerracotta).
+		Foreground(colorSecondary).
+		Padding(0, 0, 0, 1)
+
+	l := list.New([]list.Item{}, delegate, 0, 0)
+	l.Title = "✻ Spectre Extension Store"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
 	l.Styles.Title = titleStyle
@@ -114,7 +138,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case installFinishedMsg:
 		if msg.err != nil {
-			m.list.NewStatusMessage(statusMessageStyle("Error: " + msg.err.Error()))
+			errStyle := lipgloss.NewStyle().Foreground(colorError).Render
+			m.list.NewStatusMessage(errStyle("Error: " + msg.err.Error()))
 		} else {
 			m.list.NewStatusMessage(statusMessageStyle("Successfully installed " + m.installing))
 		}

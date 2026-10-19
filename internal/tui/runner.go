@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/Gokul-Eswar/Spectre/internal/collector"
 )
 
@@ -36,13 +37,17 @@ type runnerModel struct {
 
 func NewRunnerModel() runnerModel {
 	ti := textinput.New()
+	ti.Prompt = "❯ "
+	ti.PromptStyle = lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true)
 	ti.Placeholder = "example.com"
 	ti.Focus()
 
 	oi := textinput.New()
+	oi.Prompt = "❯ "
+	oi.PromptStyle = lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true)
 	oi.Placeholder = "80, 443, 8080 (optional)"
 
-	// Dynamic Collector list
+	// Dynamic Collector list with Claude Code Delegate
 	var collectors []list.Item
 	for _, c := range collector.List() {
 		collectors = append(collectors, item{
@@ -51,13 +56,15 @@ func NewRunnerModel() runnerModel {
 		})
 	}
 
-	cl := list.New(collectors, list.NewDefaultDelegate(), 0, 0)
-	cl.Title = "Select Collector (Space to toggle Active Mode)"
+	cl := list.New(collectors, NewClaudeListDelegate(), 0, 0)
+	cl.Title = "Select Collector (Space to toggle Active Mode) [SAFE]"
+	cl.Styles.Title = lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true)
 	cl.SetShowHelp(false)
 
-	// Case list (initialized empty, will be populated by Update)
-	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	// Case list with Claude Code Delegate
+	l := list.New([]list.Item{}, NewClaudeListDelegate(), 0, 0)
 	l.Title = "Select Case for Collection"
+	l.Styles.Title = lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true)
 	l.SetShowHelp(false)
 
 	return runnerModel{
@@ -108,7 +115,7 @@ func (m runnerModel) Update(msg tea.Msg) (runnerModel, tea.Cmd) {
 
 	case inputTarget:
 		if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
-			target := m.textInput.Value()
+			target := strings.TrimSpace(m.textInput.Value())
 			if target == "" {
 				return m, nil
 			}
@@ -133,12 +140,11 @@ func (m runnerModel) Update(msg tea.Msg) (runnerModel, tea.Cmd) {
 
 	case inputOptions:
 		if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
-			target := m.textInput.Value()
-			optionsStr := m.optionsInput.Value()
+			target := strings.TrimSpace(m.textInput.Value())
+			optionsStr := strings.TrimSpace(m.optionsInput.Value())
 
 			var options map[string]interface{}
 			if optionsStr != "" {
-				// Parse ports
 				parts := strings.Split(optionsStr, ",")
 				var ports []int
 				for _, p := range parts {
@@ -194,26 +200,62 @@ func (m runnerModel) View() string {
 	case selectCollector:
 		return m.collList.View()
 	case inputTarget:
-		status := "SAFE"
+		statusBadge := lipgloss.NewStyle().Foreground(ColorClaudeSuccess).Bold(true).Render("[● SAFE PASSIVE]")
 		if m.activeAllowed {
-			status = "ACTIVE/DANGEROUS"
+			statusBadge = lipgloss.NewStyle().Foreground(ColorClaudeWarning).Bold(true).Render("[▲ ACTIVE/DANGEROUS]")
 		}
-		return fmt.Sprintf(
-			"Running %s for case %s\nMode: %s\n\nEnter target:\n\n%s\n\n(enter: next • esc: cancel)",
-			m.selectedColl, m.selectedCaseID, status, m.textInput.View(),
-		)
+		box := StyleCardFocused.Width(62).Render(fmt.Sprintf(
+			"%s\n%s\n\nCollector : %s\nCase      : %s\nMode      : %s\n\nTarget Specification:\n%s\n\n%s",
+			StyleTitle.Render("✻ RECONNAISSANCE TARGET"),
+			StyleDim.Render(strings.Repeat("─", 45)),
+			lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true).Render(m.selectedColl),
+			m.selectedCaseID,
+			statusBadge,
+			m.textInput.View(),
+			StyleDim.Render("[Enter: Next  •  Esc: Cancel]"),
+		))
+		return box
+
 	case inputOptions:
-		return fmt.Sprintf(
-			"Custom Probes for %s\nTarget: %s\n\nEnter custom ports (comma separated):\n\n%s\n\n(leave empty for defaults • enter: run • esc: cancel)",
-			m.selectedColl, m.textInput.Value(), m.optionsInput.View(),
-		)
+		box := StyleCardFocused.Width(62).Render(fmt.Sprintf(
+			"%s\n%s\n\nCollector : %s\nTarget    : %s\n\nEnter custom ports (comma separated):\n%s\n\n%s",
+			StyleTitle.Render("✻ PROBE CONFIGURATION"),
+			StyleDim.Render(strings.Repeat("─", 45)),
+			lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true).Render(m.selectedColl),
+			lipgloss.NewStyle().Foreground(ColorClaudeText).Bold(true).Render(m.textInput.Value()),
+			m.optionsInput.View(),
+			StyleDim.Render("(leave empty for defaults  •  Enter: Run  •  Esc: Cancel)"),
+		))
+		return box
+
 	case executing:
-		return fmt.Sprintf("Running %s against %s... Please wait.", m.selectedColl, m.textInput.Value())
+		box := StyleCard.Width(62).Render(fmt.Sprintf(
+			"%s\n%s\n\nRunning %s against %s...\n\n%s",
+			StyleTitle.Render("✻ EXECUTING COLLECTOR"),
+			StyleDim.Render(strings.Repeat("─", 45)),
+			lipgloss.NewStyle().Foreground(ColorClaudeTerracotta).Bold(true).Render(m.selectedColl),
+			lipgloss.NewStyle().Foreground(ColorClaudeText).Bold(true).Render(m.textInput.Value()),
+			StyleDim.Render("Please wait while evidence is being collected..."),
+		))
+		return box
+
 	case result:
 		if m.err != nil {
-			return fmt.Errorf("Error: %v\n\n(enter: continue)", m.err).Error()
+			return StyleCard.BorderForeground(ColorClaudeError).Width(62).Render(fmt.Sprintf(
+				"%s\n%s\n\nError: %v\n\n%s",
+				lipgloss.NewStyle().Foreground(ColorClaudeError).Bold(true).Render("✖ COLLECTION FAILED"),
+				StyleDim.Render(strings.Repeat("─", 45)),
+				m.err,
+				StyleDim.Render("(enter: continue)"),
+			))
 		}
-		return fmt.Sprintf("%s\n\n(enter: continue)", m.message)
+		return StyleCard.BorderForeground(ColorClaudeSuccess).Width(62).Render(fmt.Sprintf(
+			"%s\n%s\n\n%s\n\n%s",
+			lipgloss.NewStyle().Foreground(ColorClaudeSuccess).Bold(true).Render("✔ COLLECTION SUCCESS"),
+			StyleDim.Render(strings.Repeat("─", 45)),
+			m.message,
+			StyleDim.Render("(enter: continue)"),
+		))
 	}
 	return ""
 }

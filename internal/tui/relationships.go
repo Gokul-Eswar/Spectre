@@ -2,7 +2,6 @@ package tui
 
 import (
 	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/Gokul-Eswar/Spectre/internal/storage"
 )
 
@@ -41,21 +40,17 @@ func FetchRelationships(caseID string) ([]table.Row, error) {
 
 func NewRelationshipTable() table.Model {
 	columns := []table.Column{
-		{Title: "Source", Width: 20},
-		{Title: "Type", Width: 15},
-		{Title: "Target", Width: 20},
+		{Title: "SOURCE ENTITY", Width: 26},
+		{Title: "RELATIONSHIP", Width: 18},
+		{Title: "TARGET ENTITY", Width: 26},
 	}
 
 	t := table.New(
 		table.WithColumns(columns),
 		table.WithFocused(true),
-		table.WithHeight(10),
+		table.WithHeight(12),
 	)
 
-	s := table.DefaultStyles()
-	s.Header = s.Header.Bold(true)
-	s.Selected = s.Selected.Foreground(lipgloss.Color("229")).Background(lipgloss.Color("57"))
-	t.SetStyles(s)
-
+	t.SetStyles(ClaudeTableStyles())
 	return t
 }
