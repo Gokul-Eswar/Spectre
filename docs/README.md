@@ -15,7 +15,18 @@ Welcome! This page helps you find the right guide for what you want to do.
 
 ## ⚡ Quick Installation
 
-### Windows (Single-Command Silent Install)
+### Option 1: Build from Source (Windows, Linux, macOS)
+```bash
+git clone https://github.com/Gokul-Eswar/Spectre.git
+cd Spectre
+go build -o spectre cmd/spectre/main.go
+# Setup Python analyzer
+python3 -m venv .venv && source .venv/bin/activate && pip install -r analyzer/requirements.txt
+# Launch modern console
+./spectre console
+```
+
+### Option 2: Windows Pre-built Installer (Single-Command Silent Install)
 Open PowerShell as Administrator and run:
 ```powershell
 powershell -NoProfile -Command "$u='https://github.com/Gokul-Eswar/Spectre/releases/latest/download/Spectre-Setup-x64.exe';$o=\"$env:TEMP\Spectre-Setup.exe\";Invoke-WebRequest $u -OutFile $o; Start-Process -FilePath $o -ArgumentList '/VERYSILENT','/NORESTART' -Wait"

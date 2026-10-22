@@ -10,7 +10,7 @@ Before starting, make sure you have these installed:
 
 | What | Minimum Version | Check with |
 |------|---|---|
-| **Go** | 1.22+ | `go version` |
+| **Go** | 1.21+ | `go version` |
 | **Python** | 3.10+ | `python --version` |
 | **Git** | 2.x+ | `git --version` |
 
@@ -19,7 +19,75 @@ Before starting, make sure you have these installed:
 
 ---
 
-## Windows Users (Easiest Way: Single-Command Installer)
+## Installation Methods
+
+You can install SPECTRE using either:
+1. **Source Installation (Recommended for Developers & Contributors)** — Available on Windows, Linux, and macOS.
+2. **Pre-built Silent Installer (Windows Only)** — Single-command automated installation.
+
+---
+
+## Method 1: Build from Source (All Platforms)
+
+### Windows (PowerShell)
+
+**Step 1:** Clone the repository:
+```powershell
+git clone https://github.com/Gokul-Eswar/Spectre.git
+cd Spectre
+```
+
+**Step 2:** Build the Go binary:
+```powershell
+go build -o spectre.exe cmd/spectre/main.go
+```
+
+**Step 3:** Set up the Python virtual environment and analyzer dependencies:
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install --upgrade pip
+pip install -r analyzer/requirements.txt
+```
+
+*(Optional) Using Make on Windows:*
+If you have `make` installed:
+```powershell
+make install
+```
+
+---
+
+### Linux & macOS (Bash)
+
+**Step 1:** Clone the repository:
+```bash
+git clone https://github.com/Gokul-Eswar/Spectre.git
+cd Spectre
+```
+
+**Step 2:** Build the Go executable:
+```bash
+go build -o spectre cmd/spectre/main.go
+chmod +x spectre
+```
+
+**Step 3:** Set up the Python virtual environment and analyzer dependencies:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r analyzer/requirements.txt
+```
+
+*(Optional) Using Make:*
+```bash
+make install
+```
+
+---
+
+## Method 2: Windows Pre-built Installer (Automated)
 
 ### One-Line Install
 Open PowerShell as Administrator and run:
@@ -49,34 +117,9 @@ This will:
 
 ---
 
+## Verify Installation
 
-## Linux & macOS (Manual Setup)
-
-**Step 1:** Clone and enter the folder:
-```bash
-git clone https://github.com/Gokul-Eswar/Spectre.git
-cd Spectre
-```
-
-**Step 2:** Build the program:
-```bash
-go build -o spectre cmd/spectre/main.go
-chmod +x spectre
-```
-
-**Step 3:** Set up Python:
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r analyzer/requirements.txt
-```
-
----
-
-## Check If Everything Works
-
-Run this to verify your installation:
+Check the installed version:
 
 ```bash
 # Windows
@@ -88,79 +131,101 @@ Run this to verify your installation:
 
 You should see: `SPECTRE v1.0.0` ✓
 
----
+### Launch the Modern Horizontal Console
 
-## Run the Tests
-
-Want to make sure everything is working correctly?
+To launch the full-width interactive console:
 
 ```bash
-# Test the Go part
+# Windows
+.\spectre.exe console
+# or simply:
+.\spectre.exe
+
+# Linux/macOS
+./spectre console
+# or simply:
+./spectre
+```
+
+When the console opens:
+- The top header will display **`✻ SPECTRE`** on the left and **`Model: <configured_model>`** (or **`Model: none`** if unconfigured) on the right.
+- Type `?` into the chatbar at any time to inspect all available commands (`?cases`, `?model`, `?analyze`, `?evidence`, `?graph`, `?report`, etc.).
+
+---
+
+## Run the Test Suite
+
+Verify that all backend Go modules and Python analyzer tests pass:
+
+```bash
+# Test Go modules
 go test ./...
 
-# Test the Python part (Linux/macOS)
+# Test Python analyzer (Linux/macOS)
 .venv/bin/python -m pytest analyzer/
 
-# Test the Python part (Windows)
+# Test Python analyzer (Windows)
 .venv\Scripts\python -m pytest analyzer/
+
+# Alternatively, run via Make
+make test
 ```
 
 ---
 
-## Optional: Private & Secure Mode (Ghost Mode)
+## Optional: Ghost Mode (Tor / Proxy Hardening)
 
-If you want to hide your investigations through a proxy (Tor, VPN, etc.), follow these steps:
+If you need to route OSINT traffic through a local proxy (Tor, SOCKS5, or VPN):
 
 ### 1. Install Tor
 
 **Windows:**
-- Download [Tor Browser](https://www.torproject.org/)
-- It creates a proxy at `127.0.0.1:9150`
+- Download [Tor Browser](https://www.torproject.org/) (creates proxy at `127.0.0.1:9150`)
 
 **Linux (Ubuntu/Debian):**
 ```bash
 sudo apt install tor
-# Runs at 127.0.0.1:9050
+# Default SOCKS5 proxy runs at 127.0.0.1:9050
 ```
 
 **macOS:**
 ```bash
 brew install tor
 brew services start tor
-# Runs at 127.0.0.1:9050
+# Default SOCKS5 proxy runs at 127.0.0.1:9050
 ```
 
 ### 2. Configure SPECTRE to Use the Proxy
 
-Edit `configs/default.yaml`:
+In `configs/default.yaml`:
 ```yaml
 http:
   proxy: "socks5://127.0.0.1:9050"
   insecure_skip_verify: false
 ```
 
-### 3. Run with Security Mode On
+### 3. Run with Security Enforcement
 
 ```bash
 spectre collect all target.com --strict
 ```
 
-The `--strict` flag means: if the proxy goes down, stop immediately instead of continuing without it. This protects you from accidentally leaking data.
+The `--strict` flag ensures that if the proxy goes down, all reconnaissance probes fail-closed immediately to prevent inadvertent data leakage.
 
 ---
 
 ## Troubleshooting Installation
 
 **"Python not found"**
-- Make sure Python 3.10+ is installed: `python --version`
-- On some systems, use `python3` instead of `python`
+- Ensure Python 3.10+ is installed: `python --version`
+- On Linux/macOS, verify `python3` is symlinked or present in `PATH`.
 
 **"Go build failed"**
-- Check your Go version: `go version` (need 1.22+)
-- Make sure you're in the SPECTRE folder
+- Verify your Go version: `go version` (1.21+ required).
+- Ensure your working directory is the root of the cloned repository.
 
 **"Port 8080 is already in use"**
-- Something else is using that port
-- Change it in `configs/default.yaml` under the `server:` section
+- Another application is using the visualization server port.
+- Change the port in `configs/default.yaml` under `server.port: 8081`.
 
-**Still stuck?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+**Still stuck?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md).

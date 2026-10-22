@@ -4,104 +4,94 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestInitialModel(t *testing.T) {
 	m := InitialModel()
-	assert.Equal(t, ViewCases, m.state)
 	assert.False(t, m.quitting)
-	assert.Equal(t, 0, m.navCursor)
-	assert.NotEmpty(t, m.llmProvider)
-}
-
-func TestModelTransitions(t *testing.T) {
-	m := InitialModel()
-
-	// Switch to sidebar focus
-	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
-	assert.True(t, m2.(model).focusNav)
-
-	// Move down to 'Analysis' (navCursor 1)
-	m3, _ := m2.(model).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
-	assert.Equal(t, 1, m3.(model).navCursor)
-
-	// Press enter to switch state
-	m4, _ := m3.(model).Update(tea.KeyMsg{Type: tea.KeyEnter})
-	assert.Equal(t, ViewAnalysis, m4.(model).state)
+	assert.NotEmpty(t, m.modelStatus.Name)
+	assert.NotNil(t, m.input)
+	assert.NotNil(t, m.viewport)
 }
 
 func TestQuit(t *testing.T) {
 	m := InitialModel()
-	m2, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
-
+	m2, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	assert.True(t, m2.(model).quitting)
 	assert.NotNil(t, cmd)
 }
 
-func TestNavFocus(t *testing.T) {
-	m := InitialModel()
-	assert.False(t, m.focusNav) // Default: sidebar not focused for arrows
+func TestDetectActiveModel_Configured(t *testing.T) {
+	viper.Set("llm.provider", "ollama")
+	viper.Set("llm.model", "llama3")
 
-	// Tab toggles focus
-	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
-	assert.True(t, m2.(model).focusNav)
-
-	m3, _ := m2.(model).Update(tea.KeyMsg{Type: tea.KeyTab})
-	assert.False(t, m3.(model).focusNav)
+	status := DetectActiveModel()
+	assert.True(t, status.IsConfigured)
+	assert.Equal(t, "llama3", status.Name)
+	assert.Equal(t, "Model: llama3", status.DisplayTag)
 }
 
-func TestSettingsLLMProviderCycle(t *testing.T) {
-	m := InitialModel()
-	m.state = ViewSettings
-	m.settingsCursor = SettingLLMProvider
+func TestDetectActiveModel_NoneFallback(t *testing.T) {
+	viper.Set("llm.model", "")
+	status := DetectActiveModel()
+	assert.False(t, status.IsConfigured)
+	assert.Equal(t, "none", status.Name)
 
-	initialProvider := m.llmProvider
-
-	// Press enter to cycle provider
-	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m2Model := m2.(model)
-
-	assert.NotEqual(t, initialProvider, m2Model.llmProvider)
-	assert.NotEmpty(t, m2Model.llmEndpoint)
-	assert.NotEmpty(t, m2Model.modelName)
-	assert.NotEmpty(t, m2Model.availableModels)
+	viper.Set("llm.model", "none")
+	status2 := DetectActiveModel()
+	assert.False(t, status2.IsConfigured)
+	assert.Equal(t, "none", status2.Name)
 }
 
-func TestSettingsLLMEditMode(t *testing.T) {
-	m := InitialModel()
-	m.state = ViewSettings
-	m.settingsCursor = SettingLLMModel
+func TestDetectActiveModel_MissingCloudKey(t *testing.T) {
+	viper.Set("llm.provider", "openai")
+	viper.Set("llm.model", "gpt-4o")
+	viper.Set("llm.api_key", "")
+	viper.Set("keys.openai", "")
 
-	// Press 'e' to enter edit mode
-	m2, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
-	m2Model := m2.(model)
-	assert.True(t, m2Model.isEditingSetting)
-	assert.Equal(t, SettingLLMModel, m2Model.editSettingIndex)
-
-	// Type custom model name
-	m2Model.settingInput.SetValue("deepseek-r1:8b")
-
-	// Press enter to save
-	m3, _ := m2Model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m3Model := m3.(model)
-	assert.False(t, m3Model.isEditingSetting)
-	assert.Equal(t, "deepseek-r1:8b", m3Model.modelName)
+	status := DetectActiveModel()
+	assert.False(t, status.IsConfigured)
+	assert.Equal(t, "none", status.Name)
 }
 
-func TestSettingsConnectionStatus(t *testing.T) {
+func TestExecuteQuestionCommand_Help(t *testing.T) {
+	res := ExecuteQuestionCommand("?", "")
+	assert.False(t, res.IsError)
+	assert.Contains(t, res.Output, "SPECTRE COMMAND DIRECTORY")
+	assert.Contains(t, res.Output, "?cases")
+	assert.Contains(t, res.Output, "?analyze")
+}
+
+func TestExecuteQuestionCommand_ModelSwitch(t *testing.T) {
+	viper.Set("llm.provider", "ollama")
+	res := ExecuteQuestionCommand("?model llama3-70b", "")
+	assert.False(t, res.IsError)
+	assert.True(t, res.ModelChange)
+	assert.Contains(t, res.Output, "llama3-70b")
+
+	// Set back to none
+	res2 := ExecuteQuestionCommand("?model none", "")
+	assert.True(t, res2.ModelChange)
+	assert.Equal(t, "none", DetectActiveModel().Name)
+}
+
+func TestExecuteQuestionCommand_Unknown(t *testing.T) {
+	res := ExecuteQuestionCommand("?unknownxyz", "")
+	assert.True(t, res.IsError)
+	assert.Contains(t, res.Output, "Unknown command")
+}
+
+func TestHorizontalResizeResponsiveness(t *testing.T) {
 	m := InitialModel()
-	m.state = ViewSettings
+	newModel, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	mod := newModel.(model)
 
-	// Send successful connection message
-	m2, _ := m.Update(TestConnectionMsg{Success: true, Message: "Connected to ollama (12ms)"})
-	m2Model := m2.(model)
-	assert.Contains(t, m2Model.testStatus, "Connected to ollama")
-
-	// Send error connection message
-	m3, _ := m.Update(TestConnectionMsg{Success: false, Message: "Auth failed"})
-	m3Model := m3.(model)
-	assert.Contains(t, m3Model.testStatus, "Auth failed")
+	assert.Equal(t, 120, mod.width)
+	assert.Equal(t, 40, mod.height)
+	assert.Equal(t, 118, mod.viewport.Width)
+	assert.Equal(t, 114, mod.input.Width)
 }
 
 func TestFormatHostAndMaskAPIKey(t *testing.T) {

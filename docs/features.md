@@ -56,10 +56,9 @@ The Web Dashboard offers an advanced, interactive view of your investigation.
 - **Live Updates:** The graph refreshes automatically as new evidence is collected in the background.
 
 ### How to Use
-1.  Open the TUI (`spectre`).
-2.  Navigate to **Web Dashboard**.
-3.  Press **`s`** to start the local API server.
-4.  Press **`o`** to launch `http://localhost:8080` in your browser.
+- **Inside the TUI Console:** Simply type `?web` in the chatbar. SPECTRE automatically launches `http://localhost:8080` in your default browser.
+- **From CLI:** Run `spectre server` and open `http://localhost:8080`.
+- **In-Terminal ASCII Graph:** If you prefer staying in the terminal without opening a browser, type `?graph` in the chatbar.
 
 ---
 
@@ -68,7 +67,9 @@ The Web Dashboard offers an advanced, interactive view of your investigation.
 ### Markdown Report
 - **Best for:** Technical archiving, sharing with other analysts, or importing into wikis.
 - **Content:** Raw structured data, lists of assets, and full analysis text.
-- **Location:** Saved by default as `evidence_storage/<case_id>/investigation_report.md` (or custom path via `-o`).
+- **How to Generate:**
+  - **In Console:** Type `?report md` (or simply `?report`).
+  - **From CLI:** Run `spectre report markdown --case <case_id>`.
 
 ### PDF Report
 - **Best for:** Executive summaries, client deliverables, and formal documentation.
@@ -77,4 +78,6 @@ The Web Dashboard offers an advanced, interactive view of your investigation.
   - **Executive Summary:** AI-synthesized Findings and Risks.
   - **Entity Table:** Cleanly formatted list of discovered assets.
   - **Timeline:** Chronological log of investigation events.
-- **Location:** Saved by default as `evidence_storage/<case_id>/investigation_report.pdf` (or custom path via `-o`).
+- **How to Generate:**
+  - **In Console:** Type `?report pdf`.
+  - **From CLI:** Run `spectre report pdf --case <case_id>`.

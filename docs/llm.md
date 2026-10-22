@@ -20,27 +20,38 @@ SPECTRE is completely **LLM-independent**. Operators can seamlessly swap between
 
 ---
 
-## 2. Interactive Configuration via the Frontend TUI
+## 2. Interactive Configuration via the Modern Horizontal Console
 
-You can configure and swap LLM backends dynamically inside the **SPECTRE Interactive TUI** without touching config files or restarting the application.
+You can configure, test, and swap LLM backends dynamically inside the **SPECTRE Interactive Console** using intuitive `?` commands directly from the chat prompt.
 
-1. Launch the interactive TUI console:
+1. **Launch the interactive console:**
    ```bash
    spectre console
+   # or simply:
+   spectre
    ```
-2. Navigate to **Settings** (press `7` or use the sidebar arrow keys to select `Settings`).
-3. Under the **─── LLM CONFIGURATION ───** section:
-   - **Provider**: Press `Enter` or `Space` (or `Left`/`Right`) to cycle through providers (`ollama`, `openai`, `anthropic`, `gemini`, `groq`, `openrouter`, `lmstudio`, `localai`, `custom`). Switching providers automatically loads sensible endpoint and model presets.
-   - **Model**: Press `Enter` to cycle through presets, `e` to type any custom model name (e.g., `deepseek-r1:8b`, `gpt-4o`), or `r` to query available models from the active server.
-   - **Endpoint URL**: Press `e` (or `Enter`) to edit the base URL.
-   - **API Key**: Press `e` (or `Enter`) to input or paste your secret API key (keys are masked on screen for operational security).
-   - **Timeout**: Press `Enter` to cycle timeouts (`30s`, `60s`, `120s`, `180s`, `300s`).
-   - **Test Connection**: Press `Enter` to execute an instant connectivity check and display latency/status (e.g. `✓ Connected to openai (42ms)`).
-4. All configuration changes made in the TUI are immediately saved to disk (`configs/default.yaml`).
-5. The TUI status bar in the bottom footer displays the active LLM in real-time:
-   ```
-   ● Connected        openai:gpt-4o-mini @ api.openai.com  |  Press ? for help
-   ```
+
+2. **Minimalist Header & Dynamic Model Identification:**
+   - The top header displays strictly the application name on the left (**`✻ SPECTRE`**) and the active model on the right (**`Model: <model_name>`**).
+   - If no model is configured, or if a cloud provider is selected whose API key is missing, SPECTRE dynamically detects this state and displays:
+     ```
+     ✻ SPECTRE                                                      Model: none
+     ```
+
+3. **Managing Models via `?` Commands:**
+   - **View active model & presets:** Type `?model` to inspect the active model and available presets.
+   - **Switch models dynamically:** Type `?model <name>` (e.g. `?model gpt-4o`, `?model llama3`, `?model none`). The top bar immediately synchronizes to reflect the change.
+   - **Inspect all settings:** Type `?settings` to display current LLM provider, endpoint URL, API key status, Ghost Mode, and collector configurations.
+   - **Live update configuration:** Type `?set <key> <value>`:
+     ```text
+     ?set llm.provider openai
+     ?set llm.model gpt-4o-mini
+     ?set llm.api_key sk-proj-...
+     ```
+   - **Test connectivity:** Type `?test` to verify authorization and latency to the active LLM endpoint (e.g. `✔ Connection Verified! Latency: 42ms`).
+   - **Scan available models:** Type `?scan` to probe local Ollama / LM Studio or remote endpoints for all available models.
+
+4. All configuration changes executed in the console are automatically saved to disk (`configs/default.yaml`).
 
 ---
 

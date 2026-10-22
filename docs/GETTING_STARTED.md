@@ -16,7 +16,54 @@ Think of an investigation as a journey with 5 steps:
 
 ---
 
-## Step 1: Create a New Case
+## ⚡ Option A: Interactive Console Workflow (Fastest & Recommended)
+
+Launch the interactive console:
+```bash
+spectre console
+# or simply:
+spectre
+```
+
+Once inside the console, the header displays `✻ SPECTRE` and the active model (`Model: <name>` or `Model: none`). You can run the entire investigation by typing `?` commands and natural language into the chatbar:
+
+1. **Create and select a case:**
+   ```text
+   ?case create "suspect-infra-01" "Investigation into phishing infrastructure"
+   ```
+2. **Run reconnaissance collectors:**
+   ```text
+   ?collect target.com dns
+   ```
+3. **Inspect collected evidence:**
+   ```text
+   ?evidence
+   ```
+4. **View connections & graph:**
+   ```text
+   ?graph          # Displays clean ASCII network in your terminal
+   ?web            # Opens interactive D3 web graph in browser (localhost:8080)
+   ```
+5. **Ask questions & synthesize findings with AI:**
+   Just type your question directly (no prefix needed):
+   ```text
+   What domains or mail servers are connected to this target, and what are the main security risks?
+   ```
+   Or run the full automated analysis pipeline:
+   ```text
+   ?analyze
+   ```
+6. **Generate reports:**
+   ```text
+   ?report md      # Generates Markdown report
+   ?report pdf     # Generates executive branded PDF
+   ```
+
+---
+
+## 💻 Option B: Direct CLI Commands Workflow (Scripting & Automation)
+
+### Step 1: Create a New Case
 
 A **Case** is like a folder for your investigation. Everything you collect gets organized inside it.
 

@@ -115,6 +115,41 @@ var (
 	StyleBadge = lipgloss.NewStyle().
 			Foreground(ColorClaudeTerracotta).
 			Bold(true)
+
+	// Horizontal Layout & Header Styles
+	StyleAppLogo = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ColorClaudeTerracotta)
+
+	StyleModelPillConfigured = lipgloss.NewStyle().
+					Foreground(ColorClaudeSuccess).
+					Bold(true)
+
+	StyleModelPillNone = lipgloss.NewStyle().
+				Foreground(ColorClaudeWarning).
+				Bold(true)
+
+	StyleDivider = lipgloss.NewStyle().
+			Foreground(ColorClaudeBorderSubtle)
+
+	StyleViewport = lipgloss.NewStyle().
+			Padding(0, 1).
+			Background(ColorClaudeDark)
+
+	StylePromptSymbol = lipgloss.NewStyle().
+				Foreground(ColorClaudeTerracotta).
+				Bold(true)
+
+	StyleInputBoxActive = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(ColorClaudeTerracotta).
+				Background(ColorClaudeSurface).
+				Padding(0, 1)
+
+	StyleSuggestions = lipgloss.NewStyle().
+				Foreground(ColorClaudeDim).
+				Background(ColorClaudeDark).
+				Padding(0, 1)
 )
 
 // Glyphs & Icons matching Claude Code CLI
